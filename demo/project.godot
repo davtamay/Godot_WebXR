@@ -1,7 +1,7 @@
 ; Engine configuration file.
 ; Godot WebGL2/WebXR feasibility demo.
-; Pinned to Godot 4.4.x (the editor actually present on this machine).
-; The handoff spec said "4.7"; no such stable exists as of 2026-07 — see docs/EVIDENCE_LOG.md.
+; Runs on Godot 4.4+ (4.4.1 editor on this machine; 4.7-stable released 2026-06-18
+; is the spec target — see docs/EVIDENCE_LOG.md).
 
 config_version=5
 

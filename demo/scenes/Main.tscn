@@ -71,6 +71,7 @@ surface_material_override/0 = SubResource("Material_marker")
 script = ExtResource("2_webxr")
 enter_xr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/EnterXRButton")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+inspect_object_path = NodePath("../InspectObject")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 

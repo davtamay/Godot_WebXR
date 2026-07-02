@@ -6,19 +6,39 @@ extends Node3D
 
 @export var enter_xr_button_path: NodePath
 @export var status_label_path: NodePath
+@export var inspect_object_path: NodePath
 
 var _webxr: XRInterface
 var _vr_supported := false
 var _enter_button: Button
 var _status_label: Label
+var _inspect_object: MeshInstance3D
+var _select_count := 0
+var _base_scale := Vector3.ONE
+var _base_material: Material
+var _highlight_material: StandardMaterial3D
 
 func _ready() -> void:
     _enter_button = get_node_or_null(enter_xr_button_path) as Button
     _status_label = get_node_or_null(status_label_path) as Label
+    _inspect_object = get_node_or_null(inspect_object_path) as MeshInstance3D
 
     if _enter_button:
         _enter_button.pressed.connect(_on_enter_xr_pressed)
         _enter_button.disabled = true
+    else:
+        _set_status("Enter XR button path is not assigned or does not point to a Button.")
+
+    if _inspect_object:
+        _base_scale = _inspect_object.scale
+        _base_material = _inspect_object.get_active_material(0)
+        _highlight_material = StandardMaterial3D.new()
+        _highlight_material.albedo_color = Color(0.25, 0.95, 0.68, 1.0)
+        _highlight_material.emission_enabled = true
+        _highlight_material.emission = Color(0.25, 0.95, 0.68, 1.0)
+        _highlight_material.emission_energy_multiplier = 1.2
+    else:
+        _set_status("Inspect object path is not assigned or does not point to a MeshInstance3D.")
 
     if not OS.has_feature("web"):
         _set_status("Not a web export. WebXRInterface is available only in web builds.")
@@ -33,6 +53,9 @@ func _ready() -> void:
     _webxr.session_started.connect(_on_session_started)
     _webxr.session_ended.connect(_on_session_ended)
     _webxr.session_failed.connect(_on_session_failed)
+    _connect_webxr_input_signal("select", _on_webxr_select)
+    _connect_webxr_input_signal("selectstart", _on_webxr_select_start)
+    _connect_webxr_input_signal("selectend", _on_webxr_select_end)
 
     _set_status("Checking immersive-vr support…")
     _webxr.is_session_supported("immersive-vr")
@@ -67,7 +90,7 @@ func _on_enter_xr_pressed() -> void:
 
 func _on_session_started() -> void:
     get_viewport().use_xr = true
-    _set_status("WebXR session started. Rendering through Godot WebGL2 Compatibility path.")
+    _set_status("WebXR session started. Use controller trigger/tap to send select input.")
 
 func _on_session_ended() -> void:
     get_viewport().use_xr = false
@@ -76,6 +99,34 @@ func _on_session_ended() -> void:
 func _on_session_failed(message: String) -> void:
     get_viewport().use_xr = false
     _set_status("WebXR session failed: " + message)
+
+func _connect_webxr_input_signal(signal_name: StringName, callback: Callable) -> void:
+    if not _webxr.has_signal(signal_name):
+        _set_status("WebXR signal unavailable in this Godot build: " + str(signal_name))
+        return
+
+    if not _webxr.is_connected(signal_name, callback):
+        _webxr.connect(signal_name, callback)
+
+func _on_webxr_select(input_source_id: int) -> void:
+    _select_count += 1
+    _apply_select_visual_state()
+    _set_status("XR select received: %d (input source %d)" % [_select_count, input_source_id])
+
+func _on_webxr_select_start(input_source_id: int) -> void:
+    print("XR select started (input source %d)" % input_source_id)
+
+func _on_webxr_select_end(input_source_id: int) -> void:
+    print("XR select ended (input source %d)" % input_source_id)
+
+func _apply_select_visual_state() -> void:
+    if not _inspect_object:
+        _set_status("XR select received but inspect object is unavailable.")
+        return
+
+    var highlighted := _select_count % 2 == 1
+    _inspect_object.scale = _base_scale * (1.25 if highlighted else 1.0)
+    _inspect_object.set_surface_override_material(0, _highlight_material if highlighted else _base_material)
 
 func _set_status(message: String) -> void:
     if _status_label:

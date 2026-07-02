@@ -1,0 +1,9 @@
+.godot/
+demo/.godot/
+demo/build/
+*.uid
+*.import
+
+# Generated probe and benchmark output. Keep source docs/research notes tracked.
+research/probe_results/
+research/performance_results/
