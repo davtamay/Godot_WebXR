@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Browser XR/Graphics Capability Probe</title>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #101014;
+      color: #f5f5f5;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    #panel {
+      max-width: 860px;
+      margin: 24px auto;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 16px;
+      padding: 24px;
+      background: rgba(255,255,255,0.03);
+    }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    p { line-height: 1.45; color: #d4d4d8; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+    td { padding: 7px 6px; border-bottom: 1px solid rgba(255,255,255,0.12); font-size: 14px; }
+    td:first-child { color: #a1a1aa; width: 42%; }
+    .ok { color: #86efac; }
+    .bad { color: #fca5a5; }
+    .warn { color: #fde68a; }
+    button {
+      appearance: none; border: 0; border-radius: 999px;
+      padding: 10px 16px; font-weight: 700; cursor: pointer;
+      background: #38bdf8; color: #001018; margin-right: 8px;
+    }
+    pre {
+      background: rgba(0,0,0,0.45); border-radius: 8px; padding: 12px;
+      overflow-x: auto; font-size: 12px; max-height: 320px;
+    }
+    .fineprint { font-size: 12px; color: #8b8b93; }
+  </style>
+</head>
+<body>
+  <div id="panel">
+    <h1>Browser XR/Graphics Capability Probe</h1>
+    <p>
+      Engine-neutral probe for the browser/device test matrix. It reports what this
+      browser <em>exposes</em>. A "true" on the WebGPU rows means the browser API exists —
+      it says nothing about any engine rendering through WebGPU, and immersive WebXR
+      sessions may still be WebGL-only on this browser.
+    </p>
+    <table id="capabilities"><tr><td>Probing</td><td>...</td></tr></table>
+    <button id="copy-json">Copy JSON</button>
+    <button id="download-json">Download JSON</button>
+    <p class="fineprint">
+      WebXR immersive support reflects this browser + connected XR runtime right now
+      (a desktop browser without a headset runtime will honestly report false).
+    </p>
+    <pre id="json-out"></pre>
+  </div>
+
+  <script>
+    const rowsEl = document.getElementById('capabilities');
+    const jsonEl = document.getElementById('json-out');
+    let probeResult = null;
+
+    function boolText(v) {
+      if (v === true) return '<span class="ok">true</span>';
+      if (v === false) return '<span class="bad">false</span>';
+      return '<span class="warn">unknown</span>';
+    }
+    function row(label, value, isBool = true) {
+      return `<tr><td>${label}</td><td>${isBool ? boolText(value) : String(value ?? 'unknown')}</td></tr>`;
+    }
+
+    async function probe() {
+      const glCanvas = document.createElement('canvas');
+      const gl2 = glCanvas.getContext('webgl2');
+      let glRenderer = null, glVendor = null;
+      if (gl2) {
+        const dbg = gl2.getExtension('WEBGL_debug_renderer_info');
+        glRenderer = dbg ? gl2.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl2.getParameter(gl2.RENDERER);
+        glVendor = dbg ? gl2.getParameter(dbg.UNMASKED_VENDOR_WEBGL) : gl2.getParameter(gl2.VENDOR);
+      }
+
+      const hasXR = !!navigator.xr;
+      let immersiveVr = false, immersiveAr = false;
+      if (hasXR && navigator.xr.isSessionSupported) {
+        try { immersiveVr = await navigator.xr.isSessionSupported('immersive-vr'); } catch (_) {}
+        try { immersiveAr = await navigator.xr.isSessionSupported('immersive-ar'); } catch (_) {}
+      }
+
+      const hasWebGPU = !!navigator.gpu;
+      let webgpuAdapter = false, webgpuAdapterDesc = null, webgpuFeatureCount = null;
+      if (hasWebGPU) {
+        try {
+          const adapter = await navigator.gpu.requestAdapter();
+          webgpuAdapter = !!adapter;
+          if (adapter) {
+            webgpuFeatureCount = adapter.features ? adapter.features.size : null;
+            const info = adapter.info || null;
+            if (info) webgpuAdapterDesc = [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ');
+          }
+        } catch (e) {
+          webgpuAdapterDesc = 'requestAdapter error: ' + e;
+        }
+      }
+
+      probeResult = {
+        probedAt: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        devicePixelRatio: window.devicePixelRatio,
+        hardwareConcurrency: navigator.hardwareConcurrency ?? null,
+        deviceMemoryGB: navigator.deviceMemory ?? null,
+        secureContext: window.isSecureContext,
+        crossOriginIsolated: window.crossOriginIsolated,
+        sharedArrayBuffer: typeof SharedArrayBuffer !== 'undefined',
+        webgl2: !!gl2,
+        webgl2Renderer: glRenderer,
+        webgl2Vendor: glVendor,
+        webxrApi: hasXR,
+        webxrImmersiveVr: immersiveVr,
+        webxrImmersiveAr: immersiveAr,
+        webgpuApi: hasWebGPU,
+        webgpuAdapter,
+        webgpuAdapterDesc,
+        webgpuFeatureCount,
+      };
+
+      rowsEl.innerHTML = [
+        row('Secure context', probeResult.secureContext),
+        row('WebGL2', probeResult.webgl2),
+        row('WebGL2 renderer', probeResult.webgl2Renderer, false),
+        row('WebXR API', probeResult.webxrApi),
+        row('WebXR immersive-vr', probeResult.webxrImmersiveVr),
+        row('WebXR immersive-ar', probeResult.webxrImmersiveAr),
+        row('WebGPU API (detection only)', probeResult.webgpuApi),
+        row('WebGPU adapter (detection only)', probeResult.webgpuAdapter),
+        row('WebGPU adapter info', probeResult.webgpuAdapterDesc, false),
+        row('SharedArrayBuffer', probeResult.sharedArrayBuffer),
+        row('crossOriginIsolated', probeResult.crossOriginIsolated),
+        row('CPU threads', probeResult.hardwareConcurrency, false),
+        row('Device pixel ratio', probeResult.devicePixelRatio, false),
+        row('User agent', probeResult.userAgent, false),
+      ].join('');
+      jsonEl.textContent = JSON.stringify(probeResult, null, 2);
+      // Machine-readable hook for automated test drivers.
+      window.CapabilityProbeResult = probeResult;
+      document.title = 'Capability Probe: done';
+    }
+
+    document.getElementById('copy-json').addEventListener('click', () => {
+      if (probeResult) navigator.clipboard.writeText(JSON.stringify(probeResult, null, 2));
+    });
+    document.getElementById('download-json').addEventListener('click', () => {
+      if (!probeResult) return;
+      const blob = new Blob([JSON.stringify(probeResult, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'capability_probe.json';
+      a.click();
+    });
+
+    probe();
+  </script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+﻿{
+  "probedAt": "2026-07-02T18:51:29.655Z",
+  "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Claude/1.17377.2 Chrome/148.0.7778.271 Electron/42.5.1 Safari/537.36",
+  "platform": "Win32",
+  "devicePixelRatio": 1.5,
+  "hardwareConcurrency": 32,
+  "deviceMemoryGB": 32,
+  "secureContext": true,
+  "crossOriginIsolated": true,
+  "sharedArrayBuffer": true,
+  "webgl2": true,
+  "webgl2Renderer": "ANGLE (Intel, Intel(R) UHD Graphics (0x0000A788) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+  "webgl2Vendor": "Google Inc. (Intel)",
+  "webxrApi": true,
+  "webxrImmersiveVr": false,
+  "webxrImmersiveAr": false,
+  "webgpuApi": true,
+  "webgpuAdapter": true,
+  "webgpuAdapterDesc": "intel / gen-12lp",
+  "webgpuFeatureCount": 19,
+  "notes": "Embedded Chromium 148 (Claude preview, Electron). Served by tools/serve_web.py isolated profile - COOP/COEP headers confirmed working (crossOriginIsolated=true). immersive-vr false is expected without a desktop XR runtime attached."
+}

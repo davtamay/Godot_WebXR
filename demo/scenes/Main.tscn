@@ -1,0 +1,121 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
+[ext_resource type="Script" path="res://scripts/browser_capabilities.gd" id="3_caps"]
+
+[sub_resource type="Environment" id="Environment_webxr"]
+background_mode = 2
+sky_custom_fov = 70.0
+ambient_light_source = 1
+ambient_light_color = Color(0.7, 0.72, 0.78, 1)
+ambient_light_energy = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Material_floor"]
+albedo_color = Color(0.22, 0.24, 0.27, 1)
+roughness = 0.85
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(6, 6)
+
+[sub_resource type="StandardMaterial3D" id="Material_object"]
+albedo_color = Color(0.15, 0.52, 0.85, 1)
+metallic = 0.1
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_object"]
+size = Vector3(0.6, 0.6, 0.6)
+
+[sub_resource type="StandardMaterial3D" id="Material_marker"]
+albedo_color = Color(0.9, 0.72, 0.24, 1)
+roughness = 0.7
+
+[sub_resource type="SphereMesh" id="SphereMesh_marker"]
+radius = 0.12
+height = 0.24
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_webxr")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 3, 0)
+light_energy = 1.5
+shadow_enabled = true
+
+[node name="XROrigin3D" type="XROrigin3D" parent="."]
+
+[node name="Camera3D" type="Camera3D" parent="XROrigin3D"]
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 1.6, 3.0)
+current = true
+fov = 70.0
+
+[node name="Floor" type="MeshInstance3D" parent="."]
+mesh = SubResource("PlaneMesh_floor")
+surface_material_override/0 = SubResource("Material_floor")
+
+[node name="InspectObject" type="MeshInstance3D" parent="."]
+unique_name_in_owner = true
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1.8)
+mesh = SubResource("BoxMesh_object")
+surface_material_override/0 = SubResource("Material_object")
+
+[node name="MarkerSphere" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1, 0.12, -1.2)
+mesh = SubResource("SphereMesh_marker")
+surface_material_override/0 = SubResource("Material_marker")
+
+[node name="WebXRBootstrap" type="Node3D" parent="."]
+script = ExtResource("2_webxr")
+enter_xr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/EnterXRButton")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+
+[node name="CanvasLayer" type="CanvasLayer" parent="."]
+
+[node name="Panel" type="PanelContainer" parent="CanvasLayer"]
+offsets_preset = 1
+offset_left = 24.0
+offset_top = 24.0
+offset_right = 524.0
+offset_bottom = 512.0
+
+[node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 14
+
+[node name="VBoxContainer" type="VBoxContainer" parent="CanvasLayer/Panel/MarginContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Godot WebXR Feasibility"
+
+[node name="StatusLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Starting..."
+autowrap_mode = 3
+
+[node name="EnterXRButton" type="Button" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+layout_mode = 2
+text = "Enter WebXR"
+
+[node name="FpsLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "FPS"
+
+[node name="CapsLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Capabilities"
+autowrap_mode = 3
+
+[node name="BrowserCapabilities" type="Control" parent="CanvasLayer"]
+script = ExtResource("3_caps")
+output_label_path = NodePath("../Panel/MarginContainer/VBoxContainer/CapsLabel")
