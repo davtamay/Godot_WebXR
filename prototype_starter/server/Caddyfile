@@ -1,0 +1,14 @@
+# Example Caddy config for serving an exported Godot web build over HTTPS.
+# Replace the site address and root path.
+
+example.your-company.test {
+  root * /absolute/path/to/exported/build
+  file_server
+
+  header {
+    Cross-Origin-Opener-Policy "same-origin"
+    Cross-Origin-Embedder-Policy "require-corp"
+    Cross-Origin-Resource-Policy "cross-origin"
+    Cache-Control "no-store"
+  }
+}
