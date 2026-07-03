@@ -20,6 +20,8 @@ var _pointer_down := false
 var _screen_pointer_down := false
 var _screen_pointer_index := -1
 var _last_pointer_position := Vector2.ZERO
+var _last_motion_position := Vector2.ZERO
+var _has_motion_position := false
 
 func _ready() -> void:
     super()
@@ -115,8 +117,9 @@ func _on_hover_exited(interactor) -> void:
 
 func _on_select_entered(interactor) -> void:
     _pressing_interactor = interactor
-    _update_pointer(interactor)
-    _push_mouse_button(_last_pointer_position, true)
+    if _update_pointer(interactor):
+        _push_mouse_button(_last_pointer_position, true)
+        _push_mouse_motion(_last_pointer_position)
 
 func _on_select_exited(interactor) -> void:
     if interactor == _pressing_interactor:
@@ -124,20 +127,21 @@ func _on_select_exited(interactor) -> void:
         _push_mouse_button(_last_pointer_position, false)
         _pressing_interactor = null
 
-func _update_pointer(interactor: Node) -> void:
+func _update_pointer(interactor: Node) -> bool:
     if _viewport == null or interactor == null or not interactor.has_method("get_ray_state"):
-        return
+        return false
 
     var ray_state: Dictionary = interactor.get_ray_state()
     if not ray_state.get("valid", false):
-        return
+        return false
 
     var mapped := map_ray_to_viewport(ray_state["origin"], ray_state["direction"])
     if mapped.is_empty():
-        return
+        return false
 
     _last_pointer_position = mapped["position"]
     _push_mouse_motion(_last_pointer_position)
+    return true
 
 func _handle_screen_motion(screen_position: Vector2, dragging: bool) -> void:
     var mapped := map_screen_point_to_viewport(screen_position)
@@ -163,6 +167,8 @@ func _handle_screen_button(screen_position: Vector2, pressed: bool) -> void:
         _last_pointer_position = mapped["position"]
         _push_mouse_motion(_last_pointer_position)
     _push_mouse_button(_last_pointer_position, pressed)
+    if pressed:
+        _push_mouse_motion(_last_pointer_position)
     _screen_pointer_down = pressed
     _mark_screen_input_handled()
 
@@ -178,6 +184,7 @@ func _handle_screen_touch(index: int, screen_position: Vector2, pressed: bool) -
         _last_pointer_position = mapped["position"]
         _push_mouse_motion(_last_pointer_position)
         _push_mouse_button(_last_pointer_position, true)
+        _push_mouse_motion(_last_pointer_position)
         _mark_screen_input_handled()
     elif _screen_pointer_down and index == _screen_pointer_index:
         var mapped := map_screen_point_to_viewport(screen_position)
@@ -200,8 +207,11 @@ func _push_mouse_motion(position: Vector2) -> void:
     var event := InputEventMouseMotion.new()
     event.position = position
     event.global_position = position
+    event.relative = position - _last_motion_position if _has_motion_position else Vector2.ZERO
     event.button_mask = MOUSE_BUTTON_MASK_LEFT if _pointer_down else 0
     _viewport.push_input(event, true)
+    _last_motion_position = position
+    _has_motion_position = true
 
 func _push_mouse_button(position: Vector2, pressed: bool) -> void:
     if _viewport == null or _pointer_down == pressed:

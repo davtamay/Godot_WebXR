@@ -36,6 +36,7 @@ func _run_all() -> void:
     _test_grab_follow()
     _test_visuals_follow_ray_state()
     _test_ui_canvas_mapping()
+    await _test_ui_canvas_drag_slider()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -385,6 +386,43 @@ func _test_ui_canvas_mapping() -> void:
     check(not centered_ray.is_empty() and (centered_ray["position"] as Vector2).is_equal_approx(Vector2(100, 50)), "UI ray maps to center")
     check(centered_ray.get("inside", false), "UI ray reports inside panel bounds")
     check(ui.map_ray_to_viewport(Vector3(0, 0, 1), Vector3.RIGHT).is_empty(), "UI ray parallel to panel is ignored")
+
+    ui.free()
+    manager.free()
+
+func _test_ui_canvas_drag_slider() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var ui := XRUICanvasInteractable.new()
+    ui.viewport_path = NodePath("Viewport")
+
+    var viewport := SubViewport.new()
+    viewport.name = "Viewport"
+    viewport.size = Vector2i(200, 100)
+    viewport.disable_3d = true
+    viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+
+    var slider := HSlider.new()
+    slider.name = "Slider"
+    slider.position = Vector2(0, 25)
+    slider.size = Vector2(200, 50)
+    slider.min_value = 0.0
+    slider.max_value = 100.0
+    slider.value = 0.0
+    viewport.add_child(slider)
+    ui.add_child(viewport)
+    root.add_child(ui)
+    await process_frame
+
+    ui.call("_push_mouse_motion", Vector2(20, 50))
+    ui.call("_push_mouse_button", Vector2(20, 50), true)
+    ui.call("_push_mouse_motion", Vector2(180, 50))
+    await process_frame
+    ui.call("_push_mouse_button", Vector2(180, 50), false)
+    await process_frame
+
+    check(slider.value > 80.0, "UI canvas drag updates an HSlider value, got %.2f" % slider.value)
 
     ui.free()
     manager.free()
