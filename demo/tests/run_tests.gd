@@ -12,6 +12,7 @@ const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/r
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
+const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
 
 var _checks := 0
 var _failures := 0
@@ -28,6 +29,7 @@ func _run_all() -> void:
     _test_ray_grab_distance_clamp()
     await _test_ray_hover_and_grab_integration()
     _test_webxr_adapter_inert_on_desktop()
+    _test_grab_follow()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -171,6 +173,12 @@ class FakeAdapter extends XRInputAdapter:
     func get_aim_pose(_hand: int) -> Dictionary:
         return pose
 
+class FakeInteractor extends XRBaseInteractor:
+    var attach := Transform3D.IDENTITY
+
+    func get_attach_pose() -> Transform3D:
+        return attach
+
 func _test_ray_grab_distance_clamp() -> void:
     var ray := XRRayInteractor.new()
     var interactable := XRBaseInteractable.new()
@@ -258,3 +266,46 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(adapter.get_source_kind(XRInputAdapter.Hand.LEFT) == XRInputAdapter.SourceKind.NONE, "source kind NONE on desktop")
     check(not adapter.is_hand_active(XRInputAdapter.Hand.LEFT), "hand inactive on desktop")
     adapter.free()
+
+func _test_grab_follow() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var grab := XRGrabInteractable.new()
+    root.add_child(grab)
+    grab.transform = Transform3D(Basis.IDENTITY, Vector3(1, 1, -2))
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    check(grab.get_target() == grab, "default target is the interactable itself")
+
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3(1, 1, -1))
+    grab._notify_select_entered(interactor)
+    interactor.attach.origin = Vector3(0, 2, -1)
+    grab._physics_process(1.0 / 60.0)
+    check(grab.global_position.is_equal_approx(Vector3(0, 2, -2)), "INSTANT keeps the grab offset while following")
+
+    interactor.attach = Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3(0, 2, -1))
+    grab._physics_process(1.0 / 60.0)
+    check(grab.global_transform.basis.is_equal_approx(Basis.IDENTITY), "rotation preserved with track_rotation off")
+
+    grab._notify_select_exited(interactor)
+    interactor.attach.origin = Vector3(9, 9, 9)
+    grab._physics_process(1.0 / 60.0)
+    check(not grab.global_position.is_equal_approx(Vector3(8, 9, 8)), "released object stops following")
+
+    grab.movement_type = XRGrabInteractable.MovementType.KINEMATIC_SMOOTH
+    grab.global_transform = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    grab._notify_select_entered(interactor)
+    interactor.attach.origin = Vector3(0, 0, -1)
+    grab._physics_process(1.0 / 60.0)
+    var after_one := grab.global_position
+    check(after_one.z < -0.01 and after_one.z > -1.0, "KINEMATIC_SMOOTH moves partway toward the target")
+    for i in range(300):
+        grab._physics_process(1.0 / 60.0)
+    check(grab.global_position.is_equal_approx(Vector3(0, 0, -1)), "KINEMATIC_SMOOTH converges on the target")
+    grab._notify_select_exited(interactor)
+
+    interactor.free()
+    grab.free()
+    manager.free()
