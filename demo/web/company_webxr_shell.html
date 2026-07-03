@@ -161,7 +161,8 @@
         const hands = {};
         for (const inputSource of frame.session.inputSources) {
           if (!inputSource.hand) continue;
-          const handedness = inputSource.handedness === 'right' ? 'right' : 'left';
+          if (inputSource.handedness !== 'left' && inputSource.handedness !== 'right') continue;
+          const handedness = inputSource.handedness;
           const joints = {};
           let jointCount = 0;
 
@@ -181,7 +182,12 @@
             jointCount += 1;
           }
 
-          hands[handedness] = { jointCount, joints };
+          hands[handedness] = {
+            jointCount,
+            joints,
+            targetRay: poseToPayload(frame.getPose(inputSource.targetRaySpace, bridge.referenceSpace)),
+            grip: inputSource.gripSpace ? poseToPayload(frame.getPose(inputSource.gripSpace, bridge.referenceSpace)) : null,
+          };
         }
 
         bridge.latest = {
@@ -189,6 +195,20 @@
           time,
           referenceSpaceType: bridge.referenceSpaceType,
           hands,
+        };
+      }
+
+      function poseToPayload(pose) {
+        if (!pose) return null;
+        const p = pose.transform.position;
+        const m = pose.transform.matrix;
+        return {
+          x: p.x,
+          y: p.y,
+          z: p.z,
+          dx: -m[8],
+          dy: -m[9],
+          dz: -m[10],
         };
       }
     })();

@@ -4,6 +4,14 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapte
 const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_gesture_provider.gd")
 const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
 
+const BROWSER_PALM_JOINT_NAMES := [
+    "wrist",
+    "index-finger-metacarpal",
+    "middle-finger-metacarpal",
+    "ring-finger-metacarpal",
+    "pinky-finger-metacarpal",
+]
+
 ## WebXR input source: interface-level selectstart/selectend signals resolved
 ## to handedness, controller aim poses from XRController3D, and the validated
 ## XRHandTracker hand-ray fallback. Inert outside web exports.
@@ -22,8 +30,11 @@ const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolki
 ## While selected, the cached pre-select ray translates with the palm but keeps
 ## its aim direction stable until release.
 @export var stabilize_hand_select := false
+@export var prefer_browser_hand_bridge := true
 
 var _webxr
+var _js_bridge
+var _browser_hand_snapshot := {}
 var _origin: Node3D
 var _controllers := {}
 var _select_down := {
@@ -55,6 +66,8 @@ func _ready() -> void:
     _origin = get_node_or_null(xr_origin_path) as Node3D
     _controllers[Hand.LEFT] = get_node_or_null(left_controller_path) as XRController3D
     _controllers[Hand.RIGHT] = get_node_or_null(right_controller_path) as XRController3D
+    if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
+        _js_bridge = Engine.get_singleton("JavaScriptBridge")
     if not OS.has_feature("web"):
         return
 
@@ -66,6 +79,7 @@ func _ready() -> void:
     _connect_interface_signal(&"selectend", _on_selectend)
 
 func _process(_delta: float) -> void:
+    _refresh_browser_hand_snapshot()
     if synthesize_pinch_select:
         _update_synthetic_pinch_select(Hand.LEFT)
         _update_synthetic_pinch_select(Hand.RIGHT)
@@ -73,6 +87,11 @@ func _process(_delta: float) -> void:
 func get_aim_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id):
         return {}
+
+    var browser_pose := _browser_aim_pose(hand_id)
+    if not browser_pose.is_empty():
+        return _stabilized_hand_pose(hand_id, browser_pose)
+
     var hand_pose := _hand_aim_pose(hand_id)
     if not hand_pose.is_empty():
         hand_pose = _stabilized_hand_pose(hand_id, hand_pose)
@@ -87,12 +106,20 @@ func get_grip_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id):
         return {}
 
+    var browser_pose := _browser_grip_pose(hand_id)
+    if not browser_pose.is_empty():
+        return browser_pose
+
     var hand_pose := _hand_grip_pose(hand_id)
     return hand_pose if not hand_pose.is_empty() else _controller_aim_pose(hand_id)
 
 func get_source_kind(hand_id: int) -> int:
     if not _valid_hand(hand_id):
         return SourceKind.NONE
+
+    var browser_tracked := not _browser_aim_pose(hand_id).is_empty() or not _browser_grip_pose(hand_id).is_empty()
+    if browser_tracked:
+        return SourceKind.HAND
 
     var hand_tracked := not _hand_aim_pose(hand_id).is_empty()
     var controller_tracked := not _controller_aim_pose(hand_id).is_empty()
@@ -110,6 +137,133 @@ func _connect_interface_signal(signal_name: StringName, callback: Callable) -> v
         return
     if not _webxr.is_connected(signal_name, callback):
         _webxr.connect(signal_name, callback)
+
+func _refresh_browser_hand_snapshot() -> void:
+    if _js_bridge == null:
+        _browser_hand_snapshot = {}
+        return
+
+    var json_text = _js_bridge.eval("JSON.stringify(window.CompanyWebXRHandBridge && window.CompanyWebXRHandBridge.latest || null)", true)
+    var parsed = JSON.parse_string(str(json_text))
+    if typeof(parsed) == TYPE_DICTIONARY:
+        _browser_hand_snapshot = parsed
+    else:
+        _browser_hand_snapshot = {}
+
+func _browser_hand_snapshot_for(hand_id: int) -> Dictionary:
+    if not prefer_browser_hand_bridge or _browser_hand_snapshot.is_empty():
+        return {}
+
+    var hands = _browser_hand_snapshot.get("hands", {})
+    if typeof(hands) != TYPE_DICTIONARY:
+        return {}
+
+    var side := "right" if hand_id == Hand.RIGHT else "left"
+    var hand = hands.get(side, {})
+    return hand if typeof(hand) == TYPE_DICTIONARY else {}
+
+func _browser_aim_pose(hand_id: int) -> Dictionary:
+    var hand := _browser_hand_snapshot_for(hand_id)
+    if hand.is_empty():
+        return {}
+    return _pose_from_browser_payload(hand.get("targetRay", {}))
+
+func _browser_grip_pose(hand_id: int) -> Dictionary:
+    var hand := _browser_hand_snapshot_for(hand_id)
+    if hand.is_empty():
+        return {}
+
+    var grip_pose := _pose_from_browser_payload(hand.get("grip", {}))
+    if not grip_pose.is_empty():
+        return grip_pose
+
+    var palm = _browser_joint_average(hand, BROWSER_PALM_JOINT_NAMES)
+    if palm == null:
+        return {}
+
+    var origin_xf := _origin.global_transform if _origin != null else Transform3D.IDENTITY
+    return {
+        "origin": origin_xf * (palm as Vector3),
+        "basis": origin_xf.basis.orthonormalized(),
+    }
+
+func _pose_from_browser_payload(payload) -> Dictionary:
+    if typeof(payload) != TYPE_DICTIONARY:
+        return {}
+    if payload.is_empty():
+        return {}
+    if not payload.has("x") or not payload.has("y") or not payload.has("z"):
+        return {}
+
+    var local_origin := Vector3(
+        float(payload.get("x", 0.0)),
+        float(payload.get("y", 0.0)),
+        float(payload.get("z", 0.0))
+    )
+    var local_direction := Vector3(
+        float(payload.get("dx", 0.0)),
+        float(payload.get("dy", 0.0)),
+        float(payload.get("dz", -1.0))
+    )
+    if local_direction.length_squared() < 0.000001:
+        return {}
+
+    var origin_xf := _origin.global_transform if _origin != null else Transform3D.IDENTITY
+    var direction := (origin_xf.basis * local_direction).normalized()
+    return {
+        "origin": origin_xf * local_origin,
+        "direction": direction,
+        "basis": XRHandGestureProvider.basis_from_forward(direction),
+    }
+
+func _browser_joint_average(hand: Dictionary, joint_names: Array):
+    var joints = hand.get("joints", {})
+    if typeof(joints) != TYPE_DICTIONARY:
+        return null
+
+    var position := Vector3.ZERO
+    var count := 0
+    for joint_name in joint_names:
+        var sample = joints.get(str(joint_name), {})
+        if typeof(sample) != TYPE_DICTIONARY:
+            continue
+        position += Vector3(
+            float(sample.get("x", 0.0)),
+            float(sample.get("y", 0.0)),
+            float(sample.get("z", 0.0))
+        )
+        count += 1
+
+    if count == 0:
+        return null
+    return position / float(count)
+
+func _browser_joint_position(hand: Dictionary, joint_name: String):
+    var joints = hand.get("joints", {})
+    if typeof(joints) != TYPE_DICTIONARY:
+        return null
+
+    var sample = joints.get(joint_name, {})
+    if typeof(sample) != TYPE_DICTIONARY:
+        return null
+
+    return Vector3(
+        float(sample.get("x", 0.0)),
+        float(sample.get("y", 0.0)),
+        float(sample.get("z", 0.0))
+    )
+
+func _browser_pinch_distance(hand_id: int) -> float:
+    var hand := _browser_hand_snapshot_for(hand_id)
+    if hand.is_empty():
+        return -1.0
+
+    var thumb = _browser_joint_position(hand, "thumb-tip")
+    var index = _browser_joint_position(hand, "index-finger-tip")
+    if thumb == null or index == null:
+        return -1.0
+
+    return (thumb as Vector3).distance_to(index as Vector3)
 
 func _on_selectstart(input_source_id: int) -> void:
     var hand_id := _hand_for_input_source(input_source_id)
@@ -232,6 +386,8 @@ func _begin_select_stabilization(hand_id: int, fallback_pose := {}) -> void:
     if pose.is_empty() and not fallback_pose.is_empty():
         pose = fallback_pose
     if pose.is_empty():
+        pose = _browser_aim_pose(hand_id)
+    if pose.is_empty():
         pose = _hand_aim_pose(hand_id)
 
     _select_anchor_pose[hand_id] = pose.duplicate() if not pose.is_empty() else {}
@@ -245,7 +401,17 @@ func _end_select_stabilization(hand_id: int) -> void:
     _select_anchor_hand_anchor[hand_id] = null
 
 func _hand_anchor_global(hand_id: int):
-    if not _valid_hand(hand_id) or _origin == null:
+    if not _valid_hand(hand_id):
+        return null
+
+    var browser_hand := _browser_hand_snapshot_for(hand_id)
+    if not browser_hand.is_empty():
+        var browser_anchor = _browser_joint_average(browser_hand, BROWSER_PALM_JOINT_NAMES)
+        if browser_anchor != null:
+            var origin_xf := _origin.global_transform if _origin != null else Transform3D.IDENTITY
+            return origin_xf * (browser_anchor as Vector3)
+
+    if _origin == null:
         return null
 
     var tracker := XRHandTrackerResolver.get_tracker(hand_id)
@@ -288,6 +454,10 @@ func _update_synthetic_pinch_select(hand_id: int) -> void:
 func _pinch_distance(hand_id: int) -> float:
     if not _valid_hand(hand_id):
         return -1.0
+
+    var browser_distance := _browser_pinch_distance(hand_id)
+    if browser_distance >= 0.0:
+        return browser_distance
 
     var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:

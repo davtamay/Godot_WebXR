@@ -41,6 +41,7 @@ func _run_all() -> void:
     await _test_ray_hover_and_grab_integration()
     _test_ray_suppressed_by_direct_interactor()
     _test_webxr_adapter_inert_on_desktop()
+    _test_webxr_adapter_browser_bridge_pose_math()
     _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_visuals_follow_ray_state()
@@ -471,6 +472,46 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(not adapter.prefer_hand_ray, "runtime aim pose is preferred over joint hand ray by default")
     check(not adapter.stabilize_hand_select, "hand ray select stabilization defaults off")
     adapter.free()
+
+func _test_webxr_adapter_browser_bridge_pose_math() -> void:
+    var origin := Node3D.new()
+    root.add_child(origin)
+    origin.global_position = Vector3(10, 0, 0)
+
+    var adapter := WebXRInputAdapter.new()
+    adapter.set("_origin", origin)
+    adapter.set("_browser_hand_snapshot", {
+        "hands": {
+            "right": {
+                "targetRay": {"x": 1.0, "y": 2.0, "z": 3.0, "dx": 0.0, "dy": 0.0, "dz": -1.0},
+                "joints": {
+                    "wrist": {"x": 1.0, "y": 0.0, "z": 0.0},
+                    "index-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.02},
+                    "middle-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.03},
+                    "ring-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.04},
+                    "pinky-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.05},
+                    "thumb-tip": {"x": 1.0, "y": 0.0, "z": -0.10},
+                    "index-finger-tip": {"x": 1.0, "y": 0.0, "z": -0.12},
+                },
+            },
+        },
+    })
+
+    var aim_pose := adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT)
+    check(not aim_pose.is_empty(), "browser bridge target ray yields an aim pose")
+    check((aim_pose["origin"] as Vector3).is_equal_approx(Vector3(11, 2, 3)), "browser bridge aim pose is converted to global space")
+    check((aim_pose["direction"] as Vector3).is_equal_approx(Vector3(0, 0, -1)), "browser bridge aim direction is preserved")
+    check(adapter.get_source_kind(XRInputAdapter.Hand.RIGHT) == XRInputAdapter.SourceKind.HAND, "browser bridge reports hand source kind")
+
+    var grip_pose := adapter.get_grip_pose(XRInputAdapter.Hand.RIGHT)
+    check(not grip_pose.is_empty(), "browser bridge joints yield a grip fallback")
+    check((grip_pose["origin"] as Vector3).is_equal_approx(Vector3(11, 0, -0.028)), "browser bridge grip fallback averages palm joints in global space")
+
+    var pinch_distance: float = adapter.call("_browser_pinch_distance", XRInputAdapter.Hand.RIGHT)
+    check(is_equal_approx(pinch_distance, 0.02), "browser bridge pinch distance reads thumb/index tips")
+
+    adapter.free()
+    origin.free()
 
 func _test_hand_select_stabilization_math() -> void:
     var adapter := WebXRInputAdapter.new()
