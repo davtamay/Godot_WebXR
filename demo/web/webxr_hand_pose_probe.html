@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Raw WebXR Hand Pose Probe</title>
+  <style>
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #101014;
+      color: #f5f5f5;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 24px; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-weight: 700;
+      background: #38bdf8;
+      color: #001018;
+    }
+    canvas {
+      width: 100%;
+      max-width: 480px;
+      aspect-ratio: 16 / 9;
+      display: block;
+      margin: 16px 0;
+      background: #000;
+    }
+    pre {
+      white-space: pre-wrap;
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 8px;
+      padding: 12px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Raw WebXR Hand Pose Probe</h1>
+    <p>Tests Meta Browser hand joint poses directly, without Godot.</p>
+    <button id="enter">Enter Raw Hand Probe</button>
+    <canvas id="canvas"></canvas>
+    <pre id="status">Ready.</pre>
+  </main>
+
+  <script>
+    const canvas = document.getElementById('canvas');
+    const button = document.getElementById('enter');
+    const statusEl = document.getElementById('status');
+
+    const JOINTS = [
+      'wrist',
+      'thumb-tip',
+      'index-finger-tip',
+      'middle-finger-tip',
+      'ring-finger-tip',
+      'pinky-finger-tip',
+    ];
+
+    let gl;
+    let program;
+    let positionBuffer;
+    let colorBuffer;
+    let referenceSpace;
+    let lastStatusTime = 0;
+    const lastWrist = { left: null, right: null };
+    const accumulatedMotion = { left: 0, right: 0 };
+
+    function log(message) {
+      statusEl.textContent += `\n${message}`;
+      console.log(message);
+    }
+
+    function fail(label, error) {
+      const message = `${label}: ${error && error.stack ? error.stack : error}`;
+      statusEl.textContent += `\n\nFAILED - ${message}`;
+      console.error(message);
+      window.CompanyRawWebXRHandProbeFailure = message;
+    }
+
+    function createShader(type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        throw new Error(gl.getShaderInfoLog(shader));
+      }
+      return shader;
+    }
+
+    function createProgram() {
+      const vertex = createShader(gl.VERTEX_SHADER, `#version 300 es
+        in vec3 a_position;
+        in vec3 a_color;
+        uniform mat4 u_view_projection;
+        out vec3 v_color;
+        void main() {
+          gl_Position = u_view_projection * vec4(a_position, 1.0);
+          gl_PointSize = 18.0;
+          v_color = a_color;
+        }
+      `);
+      const fragment = createShader(gl.FRAGMENT_SHADER, `#version 300 es
+        precision highp float;
+        in vec3 v_color;
+        out vec4 out_color;
+        void main() {
+          vec2 p = gl_PointCoord * 2.0 - 1.0;
+          if (dot(p, p) > 1.0) discard;
+          out_color = vec4(v_color, 1.0);
+        }
+      `);
+      const linked = gl.createProgram();
+      gl.attachShader(linked, vertex);
+      gl.attachShader(linked, fragment);
+      gl.linkProgram(linked);
+      if (!gl.getProgramParameter(linked, gl.LINK_STATUS)) {
+        throw new Error(gl.getProgramInfoLog(linked));
+      }
+      return linked;
+    }
+
+    function multiplyMatrix(a, b) {
+      const out = new Float32Array(16);
+      for (let row = 0; row < 4; row++) {
+        for (let col = 0; col < 4; col++) {
+          out[col * 4 + row] =
+            a[0 * 4 + row] * b[col * 4 + 0] +
+            a[1 * 4 + row] * b[col * 4 + 1] +
+            a[2 * 4 + row] * b[col * 4 + 2] +
+            a[3 * 4 + row] * b[col * 4 + 3];
+        }
+      }
+      return out;
+    }
+
+    function updateMotion(handedness, wristPosition) {
+      const previous = lastWrist[handedness];
+      if (previous) {
+        const dx = wristPosition.x - previous.x;
+        const dy = wristPosition.y - previous.y;
+        const dz = wristPosition.z - previous.z;
+        const distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance > 0.001) {
+          accumulatedMotion[handedness] += distance;
+        }
+      }
+      lastWrist[handedness] = { x: wristPosition.x, y: wristPosition.y, z: wristPosition.z };
+    }
+
+    function collectHandPoints(frame) {
+      const positions = [];
+      const colors = [];
+      const counts = { left: 0, right: 0 };
+      for (const inputSource of frame.session.inputSources) {
+        if (!inputSource.hand) continue;
+        const handedness = inputSource.handedness === 'right' ? 'right' : 'left';
+        const color = handedness === 'right' ? [1.0, 0.45, 0.1] : [0.1, 0.65, 1.0];
+        for (const jointName of JOINTS) {
+          const jointSpace = inputSource.hand.get(jointName);
+          if (!jointSpace) continue;
+          const pose = frame.getJointPose(jointSpace, referenceSpace);
+          if (!pose) continue;
+          const p = pose.transform.position;
+          positions.push(p.x, p.y, p.z);
+          colors.push(color[0], color[1], color[2]);
+          counts[handedness]++;
+          if (jointName === 'wrist') {
+            updateMotion(handedness, p);
+          }
+        }
+      }
+      return { positions, colors, counts };
+    }
+
+    async function enterXR() {
+      button.disabled = true;
+      statusEl.textContent = 'Starting raw WebXR hand probe...';
+      try {
+        log(`secureContext=${window.isSecureContext}`);
+        log(`navigator.xr=${!!navigator.xr}`);
+        gl = canvas.getContext('webgl2', {
+          alpha: false,
+          antialias: false,
+          depth: true,
+          stencil: false,
+          xrCompatible: true,
+        });
+        if (!gl) throw new Error('webgl2 unavailable');
+        program = createProgram();
+        positionBuffer = gl.createBuffer();
+        colorBuffer = gl.createBuffer();
+
+        const supported = await navigator.xr.isSessionSupported('immersive-vr');
+        log(`immersive-vr supported=${supported}`);
+        if (!supported) throw new Error('immersive-vr unsupported');
+
+        const session = await navigator.xr.requestSession('immersive-vr', {
+          requiredFeatures: ['hand-tracking'],
+          optionalFeatures: ['local-floor', 'bounded-floor'],
+        });
+        log('requestSession succeeded with hand-tracking');
+
+        if (gl.makeXRCompatible) await gl.makeXRCompatible();
+        const layer = new XRWebGLLayer(session, gl);
+        session.updateRenderState({ baseLayer: layer });
+        referenceSpace = await session.requestReferenceSpace('local');
+
+        session.addEventListener('end', () => {
+          log('session ended');
+          button.disabled = false;
+        });
+
+        const aPosition = gl.getAttribLocation(program, 'a_position');
+        const aColor = gl.getAttribLocation(program, 'a_color');
+        const uViewProjection = gl.getUniformLocation(program, 'u_view_projection');
+
+        const drawFrame = (time, frame) => {
+          const xrSession = frame.session;
+          const pose = frame.getViewerPose(referenceSpace);
+          const points = collectHandPoints(frame);
+
+          if (pose) {
+            const baseLayer = xrSession.renderState.baseLayer;
+            gl.bindFramebuffer(gl.FRAMEBUFFER, baseLayer.framebuffer);
+            gl.clearColor(0.02, 0.025, 0.03, 1.0);
+            gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+            gl.useProgram(program);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points.positions), gl.DYNAMIC_DRAW);
+            gl.enableVertexAttribArray(aPosition);
+            gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+            gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points.colors), gl.DYNAMIC_DRAW);
+            gl.enableVertexAttribArray(aColor);
+            gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+            for (const view of pose.views) {
+              const viewport = baseLayer.getViewport(view);
+              gl.viewport(viewport.x, viewport.y, viewport.width, viewport.height);
+              const viewProjection = multiplyMatrix(view.projectionMatrix, view.transform.inverse.matrix);
+              gl.uniformMatrix4fv(uViewProjection, false, viewProjection);
+              gl.drawArrays(gl.POINTS, 0, points.positions.length / 3);
+            }
+          }
+
+          if (time - lastStatusTime > 500) {
+            lastStatusTime = time;
+            const message =
+              `sources=${frame.session.inputSources.length} ` +
+              `L joints=${points.counts.left} motion=${accumulatedMotion.left.toFixed(3)} ` +
+              `R joints=${points.counts.right} motion=${accumulatedMotion.right.toFixed(3)}`;
+            statusEl.textContent = message;
+            console.log(message);
+          }
+          xrSession.requestAnimationFrame(drawFrame);
+        };
+
+        session.requestAnimationFrame(drawFrame);
+        log('rendering blue left-hand points and orange right-hand points');
+      } catch (error) {
+        fail('raw WebXR hand probe', error);
+        button.disabled = false;
+      }
+    }
+
+    button.addEventListener('click', enterXR);
+  </script>
+</body>
+</html>
