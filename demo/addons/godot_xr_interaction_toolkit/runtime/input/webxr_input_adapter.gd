@@ -16,6 +16,10 @@ const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolki
 @export var synthesize_pinch_select := true
 @export var pinch_start_distance := 0.035
 @export var pinch_end_distance := 0.055
+## Keeps a hand ray from jumping when thumb/index pinch geometry changes.
+## While selected, the cached pre-select ray translates with the palm but keeps
+## its aim direction stable until release.
+@export var stabilize_hand_select := true
 
 const TRACKER_PATHS := {
     Hand.LEFT: &"/user/hand_tracker/left",
@@ -32,6 +36,22 @@ var _select_down := {
 var _select_source := {
     Hand.LEFT: "",
     Hand.RIGHT: "",
+}
+var _last_free_hand_pose := {
+    Hand.LEFT: {},
+    Hand.RIGHT: {},
+}
+var _last_free_hand_anchor := {
+    Hand.LEFT: null,
+    Hand.RIGHT: null,
+}
+var _select_anchor_pose := {
+    Hand.LEFT: {},
+    Hand.RIGHT: {},
+}
+var _select_anchor_hand_anchor := {
+    Hand.LEFT: null,
+    Hand.RIGHT: null,
 }
 
 func _ready() -> void:
@@ -56,12 +76,15 @@ func _process(_delta: float) -> void:
 func get_aim_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id):
         return {}
+    var hand_pose := _hand_aim_pose(hand_id)
+    if not hand_pose.is_empty():
+        hand_pose = _stabilized_hand_pose(hand_id, hand_pose)
+
     if prefer_hand_ray:
-        var hand_pose := _hand_aim_pose(hand_id)
         return hand_pose if not hand_pose.is_empty() else _controller_aim_pose(hand_id)
 
     var controller_pose := _controller_aim_pose(hand_id)
-    return controller_pose if not controller_pose.is_empty() else _hand_aim_pose(hand_id)
+    return controller_pose if not controller_pose.is_empty() else hand_pose
 
 func get_source_kind(hand_id: int) -> int:
     if not _valid_hand(hand_id):
@@ -151,6 +174,73 @@ func _hand_aim_pose(hand_id: int) -> Dictionary:
         "basis": XRHandGestureProvider.basis_from_forward(direction),
     }
 
+func _stabilized_hand_pose(hand_id: int, raw_pose: Dictionary) -> Dictionary:
+    if not stabilize_hand_select:
+        _remember_free_hand_pose(hand_id, raw_pose)
+        return raw_pose
+
+    if not _select_down.get(hand_id, false):
+        _remember_free_hand_pose(hand_id, raw_pose)
+        return raw_pose
+
+    var anchor_pose: Dictionary = _select_anchor_pose.get(hand_id, {})
+    if anchor_pose.is_empty():
+        _begin_select_stabilization(hand_id, raw_pose)
+        anchor_pose = _select_anchor_pose.get(hand_id, {})
+    if anchor_pose.is_empty():
+        return raw_pose
+
+    var start_anchor = _select_anchor_hand_anchor.get(hand_id)
+    var current_anchor = _hand_anchor_global(hand_id)
+    if start_anchor == null or current_anchor == null:
+        return anchor_pose
+    return _offset_pose_by_anchor_delta(anchor_pose, start_anchor, current_anchor)
+
+func _remember_free_hand_pose(hand_id: int, pose: Dictionary) -> void:
+    _last_free_hand_pose[hand_id] = pose.duplicate()
+    _last_free_hand_anchor[hand_id] = _hand_anchor_global(hand_id)
+
+func _begin_select_stabilization(hand_id: int, fallback_pose := {}) -> void:
+    if not stabilize_hand_select or not _valid_hand(hand_id):
+        return
+
+    var pose: Dictionary = _last_free_hand_pose.get(hand_id, {})
+    if pose.is_empty() and not fallback_pose.is_empty():
+        pose = fallback_pose
+    if pose.is_empty():
+        pose = _hand_aim_pose(hand_id)
+
+    _select_anchor_pose[hand_id] = pose.duplicate() if not pose.is_empty() else {}
+    var anchor = _last_free_hand_anchor.get(hand_id)
+    _select_anchor_hand_anchor[hand_id] = anchor if anchor != null else _hand_anchor_global(hand_id)
+
+func _end_select_stabilization(hand_id: int) -> void:
+    if not _valid_hand(hand_id):
+        return
+    _select_anchor_pose[hand_id] = {}
+    _select_anchor_hand_anchor[hand_id] = null
+
+func _hand_anchor_global(hand_id: int):
+    if not _valid_hand(hand_id) or _origin == null:
+        return null
+
+    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    if tracker == null:
+        return null
+
+    var anchor_joint := XRHandTracker.HAND_JOINT_PALM
+    if not XRHandGestureProvider.joint_position_valid(tracker, anchor_joint):
+        anchor_joint = XRHandTracker.HAND_JOINT_WRIST
+    if not XRHandGestureProvider.joint_position_valid(tracker, anchor_joint):
+        return null
+
+    return _origin.global_transform * tracker.get_hand_joint_transform(anchor_joint).origin
+
+func _offset_pose_by_anchor_delta(pose: Dictionary, start_anchor: Vector3, current_anchor: Vector3) -> Dictionary:
+    var translated_pose := pose.duplicate()
+    translated_pose["origin"] = (pose["origin"] as Vector3) + (current_anchor - start_anchor)
+    return translated_pose
+
 func _valid_hand(hand_id: int) -> bool:
     return hand_id == Hand.LEFT or hand_id == Hand.RIGHT
 
@@ -193,6 +283,7 @@ func _pinch_distance(hand_id: int) -> float:
 func _emit_select_started(hand_id: int, source: String) -> void:
     if not _valid_hand(hand_id) or _select_down.get(hand_id, false):
         return
+    _begin_select_stabilization(hand_id)
     _select_down[hand_id] = true
     _select_source[hand_id] = source
     select_started.emit(hand_id)
@@ -204,6 +295,7 @@ func _emit_select_ended(hand_id: int, source: String) -> void:
         return
     _select_down[hand_id] = false
     _select_source[hand_id] = ""
+    _end_select_stabilization(hand_id)
     select_ended.emit(hand_id)
 
 func _broadcast_select_started(source: String) -> void:

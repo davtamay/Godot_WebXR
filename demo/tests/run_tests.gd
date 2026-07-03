@@ -33,6 +33,7 @@ func _run_all() -> void:
     _test_ray_grab_distance_clamp()
     await _test_ray_hover_and_grab_integration()
     _test_webxr_adapter_inert_on_desktop()
+    _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_visuals_follow_ray_state()
     _test_ui_canvas_mapping()
@@ -294,6 +295,18 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT).is_empty(), "no aim pose for either hand")
     check(adapter.get_source_kind(XRInputAdapter.Hand.LEFT) == XRInputAdapter.SourceKind.NONE, "source kind NONE on desktop")
     check(not adapter.is_hand_active(XRInputAdapter.Hand.LEFT), "hand inactive on desktop")
+    adapter.free()
+
+func _test_hand_select_stabilization_math() -> void:
+    var adapter := WebXRInputAdapter.new()
+    var pose := {
+        "origin": Vector3(1, 2, 3),
+        "direction": Vector3(0, 0, -1),
+        "basis": Basis.IDENTITY,
+    }
+    var translated: Dictionary = adapter.call("_offset_pose_by_anchor_delta", pose, Vector3.ZERO, Vector3(0.25, -0.5, 0.0))
+    check((translated["origin"] as Vector3).is_equal_approx(Vector3(1.25, 1.5, 3)), "select-stabilized hand ray translates with palm movement")
+    check((translated["direction"] as Vector3).is_equal_approx(Vector3(0, 0, -1)), "select-stabilized hand ray keeps aim direction")
     adapter.free()
 
 func _test_grab_follow() -> void:
