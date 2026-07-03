@@ -18,6 +18,7 @@ const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolk
 const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
+const WebXRHandVisualizer := preload("res://scripts/webxr_hand_visualizer.gd")
 
 var _checks := 0
 var _failures := 0
@@ -29,6 +30,7 @@ func _run_all() -> void:
     print("== XR Interaction Toolkit tests ==")
     _test_layer_mask()
     _test_hand_ray_geometry()
+    _test_hand_visualizer_fallback_shape()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
@@ -102,6 +104,17 @@ func _test_hand_ray_geometry() -> void:
 func _set_joint(tracker: XRHandTracker, joint: int, position: Vector3, flags: int) -> void:
     tracker.set_hand_joint_transform(joint, Transform3D(Basis.IDENTITY, position))
     tracker.set_hand_joint_flags(joint, flags)
+
+func _test_hand_visualizer_fallback_shape() -> void:
+    var visualizer := WebXRHandVisualizer.new()
+    var left_thumb: Vector3 = visualizer.call("_fallback_joint_offset", XRInputAdapter.Hand.LEFT, XRHandTracker.HAND_JOINT_THUMB_TIP)
+    var right_thumb: Vector3 = visualizer.call("_fallback_joint_offset", XRInputAdapter.Hand.RIGHT, XRHandTracker.HAND_JOINT_THUMB_TIP)
+    var right_index: Vector3 = visualizer.call("_fallback_joint_offset", XRInputAdapter.Hand.RIGHT, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP)
+
+    check(left_thumb.x < 0.0, "left fallback thumb is mirrored to negative X")
+    check(right_thumb.x > 0.0, "right fallback thumb is mirrored to positive X")
+    check(right_index.z < -0.1, "fallback fingers extend forward from the hand pose")
+    visualizer.free()
 
 func _test_manager_registry_and_arbitration() -> void:
     var manager := XRInteractionManager.new()

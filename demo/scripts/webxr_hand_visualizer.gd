@@ -9,6 +9,8 @@ extends Node3D
 @export var bone_radius := 0.006
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
+@export var left_fallback_pose_path: NodePath
+@export var right_fallback_pose_path: NodePath
 
 const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
@@ -81,8 +83,8 @@ var _status_elapsed := 0.0
 func _ready() -> void:
     _status_label = get_node_or_null(status_label_path) as Label
     _create_shared_meshes()
-    _create_hand("Left", XRInputAdapter.Hand.LEFT, Color(0.15, 0.72, 1.0, 1.0))
-    _create_hand("Right", XRInputAdapter.Hand.RIGHT, Color(1.0, 0.48, 0.18, 1.0))
+    _create_hand("Left", XRInputAdapter.Hand.LEFT, left_fallback_pose_path, Color(0.15, 0.72, 1.0, 1.0))
+    _create_hand("Right", XRInputAdapter.Hand.RIGHT, right_fallback_pose_path, Color(1.0, 0.48, 0.18, 1.0))
 
 func _process(delta: float) -> void:
     _status_elapsed += delta
@@ -123,7 +125,7 @@ func _create_shared_meshes() -> void:
     _bone_mesh.radial_segments = 8
     _bone_mesh.rings = 1
 
-func _create_hand(hand_name: String, hand_id: int, color: Color) -> void:
+func _create_hand(hand_name: String, hand_id: int, fallback_pose_path: NodePath, color: Color) -> void:
     var root := Node3D.new()
     root.name = "%sHandTracking" % hand_name
     root.visible = false
@@ -156,6 +158,7 @@ func _create_hand(hand_name: String, hand_id: int, color: Color) -> void:
         "label": hand_name,
         "root": root,
         "hand": hand_id,
+        "fallback_pose_path": fallback_pose_path,
         "material": material,
         "pinch_material": pinch_material,
         "joints": joint_nodes,
@@ -178,6 +181,8 @@ func _update_hand(hand_data: Dictionary) -> bool:
     var root := hand_data["root"] as Node3D
     var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
+        if _update_fallback_hand(hand_data, "no joints"):
+            return true
         _last_hand_debug[hand_name] = "no tracker"
         root.visible = false
         return false
@@ -203,7 +208,10 @@ func _update_hand(hand_data: Dictionary) -> bool:
 
     if valid_joint_count == 0:
         var empty_source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
-        _last_hand_debug[hand_name] = "0 joints tracking=%s src=%s" % [str(tracker.has_tracking_data), empty_source]
+        var reason := "0 joints tracking=%s src=%s" % [str(tracker.has_tracking_data), empty_source]
+        if _update_fallback_hand(hand_data, reason):
+            return true
+        _last_hand_debug[hand_name] = reason
         root.visible = false
         return false
 
@@ -216,6 +224,107 @@ func _update_hand(hand_data: Dictionary) -> bool:
 
 func _is_joint_position_valid(tracker: XRHandTracker, joint_id: int) -> bool:
     return XRHandTrackerResolver.joint_position_valid(tracker, joint_id)
+
+func _update_fallback_hand(hand_data: Dictionary, reason: String) -> bool:
+    var hand_name: String = hand_data["label"]
+    var root := hand_data["root"] as Node3D
+    var fallback_path: NodePath = hand_data["fallback_pose_path"]
+    if fallback_path.is_empty():
+        return false
+
+    var fallback_node := get_node_or_null(fallback_path) as Node3D
+    if fallback_node == null:
+        _last_hand_debug[hand_name] = "%s fallback=missing" % reason
+        return false
+
+    var controller := fallback_node as XRController3D
+    if controller != null and (not controller.get_is_active() or not controller.get_has_tracking_data()):
+        _last_hand_debug[hand_name] = "%s fallback_wait active=%s tracking=%s" % [
+            reason,
+            str(controller.get_is_active()),
+            str(controller.get_has_tracking_data()),
+        ]
+        return false
+
+    var hand_id: int = hand_data["hand"]
+    var fallback_pose := global_transform.affine_inverse() * fallback_node.global_transform
+    var joint_positions := {}
+    var joint_valid := {}
+    var joint_nodes := hand_data["joints"] as Dictionary
+
+    for joint_id in HAND_JOINTS:
+        var offset := _fallback_joint_offset(hand_id, joint_id)
+        var joint_position := fallback_pose * offset
+        var radius := joint_radius_min
+        joint_positions[joint_id] = joint_position
+        joint_valid[joint_id] = true
+
+        var joint_node := joint_nodes[joint_id] as MeshInstance3D
+        joint_node.visible = true
+        joint_node.transform = Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * radius), joint_position)
+
+    _last_hand_debug[hand_name] = "%s fallback=%s" % [reason, fallback_node.name]
+    root.visible = true
+    _update_bones(hand_data["bones"], joint_positions, joint_valid)
+    _update_pinch_materials(hand_data, joint_positions, joint_valid)
+    return true
+
+func _fallback_joint_offset(hand_id: int, joint_id: int) -> Vector3:
+    var side := 1.0 if hand_id == XRInputAdapter.Hand.RIGHT else -1.0
+    match joint_id:
+        XRHandTracker.HAND_JOINT_WRIST:
+            return Vector3(0.0, -0.035, 0.025)
+        XRHandTracker.HAND_JOINT_PALM:
+            return Vector3(0.0, -0.01, -0.035)
+        XRHandTracker.HAND_JOINT_THUMB_METACARPAL:
+            return Vector3(side * 0.025, -0.01, -0.045)
+        XRHandTracker.HAND_JOINT_THUMB_PHALANX_PROXIMAL:
+            return Vector3(side * 0.052, -0.006, -0.06)
+        XRHandTracker.HAND_JOINT_THUMB_PHALANX_DISTAL:
+            return Vector3(side * 0.073, -0.002, -0.078)
+        XRHandTracker.HAND_JOINT_THUMB_TIP:
+            return Vector3(side * 0.09, 0.002, -0.095)
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_METACARPAL:
+            return Vector3(side * 0.027, 0.0, -0.055)
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL:
+            return Vector3(side * 0.032, 0.004, -0.09)
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_INTERMEDIATE:
+            return Vector3(side * 0.034, 0.006, -0.12)
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_DISTAL:
+            return Vector3(side * 0.035, 0.007, -0.145)
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP:
+            return Vector3(side * 0.036, 0.008, -0.165)
+        XRHandTracker.HAND_JOINT_MIDDLE_FINGER_METACARPAL:
+            return Vector3(side * 0.006, 0.003, -0.058)
+        XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_PROXIMAL:
+            return Vector3(side * 0.006, 0.007, -0.096)
+        XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_INTERMEDIATE:
+            return Vector3(side * 0.006, 0.009, -0.13)
+        XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_DISTAL:
+            return Vector3(side * 0.006, 0.01, -0.158)
+        XRHandTracker.HAND_JOINT_MIDDLE_FINGER_TIP:
+            return Vector3(side * 0.006, 0.011, -0.18)
+        XRHandTracker.HAND_JOINT_RING_FINGER_METACARPAL:
+            return Vector3(side * -0.016, 0.0, -0.056)
+        XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_PROXIMAL:
+            return Vector3(side * -0.018, 0.003, -0.09)
+        XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_INTERMEDIATE:
+            return Vector3(side * -0.02, 0.004, -0.12)
+        XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_DISTAL:
+            return Vector3(side * -0.021, 0.005, -0.145)
+        XRHandTracker.HAND_JOINT_RING_FINGER_TIP:
+            return Vector3(side * -0.022, 0.006, -0.164)
+        XRHandTracker.HAND_JOINT_PINKY_FINGER_METACARPAL:
+            return Vector3(side * -0.038, -0.005, -0.05)
+        XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_PROXIMAL:
+            return Vector3(side * -0.045, -0.003, -0.08)
+        XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_INTERMEDIATE:
+            return Vector3(side * -0.049, -0.002, -0.105)
+        XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_DISTAL:
+            return Vector3(side * -0.052, -0.001, -0.126)
+        XRHandTracker.HAND_JOINT_PINKY_FINGER_TIP:
+            return Vector3(side * -0.054, 0.0, -0.142)
+    return Vector3.ZERO
 
 func _update_bones(bone_nodes: Array[MeshInstance3D], joint_positions: Dictionary, joint_valid: Dictionary) -> void:
     for bone_index in range(BONE_PAIRS.size()):
