@@ -120,19 +120,21 @@ This should be split into two deliverables:
 
 ### Phase 0: Immediate Export Hygiene
 
-- Use selected-scene/resource export filters instead of `all_resources`.
+- Use exclude-only export filtering instead of broad `all_resources` while the
+  project still has dynamic script/preload dependencies.
 - Exclude `tests/*`, previous `build/*` outputs, and browser probe pages.
 - Keep probe pages and benchmark overlays outside the runtime pack unless a
   specific build target requests them.
 - Record raw `.wasm`, `.js`, `.pck`, image, audio, gzip, and Brotli sizes for
   every web export.
 
-Current spike result after switching the Web preset to selected-scene export:
+Current spike result after switching the Web preset to safe exclude-only export:
 
 | Build | PCK size | Notes |
 |---|---:|---|
 | Previous broad export | 314,852 bytes | Included non-runtime project files. |
-| Selected `res://scenes/Main.tscn` export | 84,560 bytes | Tests, probe pages, and old build names absent from the PCK string scan. |
+| Selected `res://scenes/Main.tscn` export | 84,560 bytes | Too aggressive: world UI and model-hand dependencies were missing on Quest. |
+| Safe exclude-only export | 97,360 bytes | Tests, probe pages, and old build names absent from the PCK string scan; UI and hand dependencies present. |
 
 The `.wasm` remains the stock engine/template payload; reducing it belongs to
 the custom-template phase, not content filtering.
@@ -145,6 +147,7 @@ Create an editor plugin command that:
 - Traverses scene dependencies, script preloads, exported `Resource` fields,
   custom shell references, and declared runtime-load manifests.
 - Writes `export_presets.cfg` selected-scene/selected-resource entries.
+- Proves generated manifests on device before replacing safe exclude-only mode.
 - Fails CI if `tests/`, `build/`, probe pages, editor-only tools, or old export
   artifacts would enter a web release pack.
 - Generates a size report before and after compression.
