@@ -15,6 +15,7 @@ const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/ru
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
 const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
 const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
+const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 
 var _checks := 0
 var _failures := 0
@@ -34,6 +35,7 @@ func _run_all() -> void:
     _test_webxr_adapter_inert_on_desktop()
     _test_grab_follow()
     _test_visuals_follow_ray_state()
+    _test_ui_canvas_mapping()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -362,4 +364,24 @@ func _test_visuals_follow_ray_state() -> void:
     check(not reticle.visible, "reticle hidden on a miss")
 
     ray.free()
+    manager.free()
+
+func _test_ui_canvas_mapping() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var ui := XRUICanvasInteractable.new()
+    ui.panel_size = Vector2(2, 1)
+    ui.viewport_pixel_size = Vector2i(200, 100)
+    root.add_child(ui)
+
+    check(ui.map_local_point_to_viewport(Vector3.ZERO).is_equal_approx(Vector2(100, 50)), "UI panel center maps to viewport center")
+    check(ui.map_local_point_to_viewport(Vector3(-1, 0.5, 0)).is_equal_approx(Vector2(0, 0)), "UI panel top-left maps to viewport origin")
+    check(ui.map_local_point_to_viewport(Vector3(1, -0.5, 0)).is_equal_approx(Vector2(200, 100)), "UI panel bottom-right maps to viewport max")
+
+    var centered_ray := ui.map_ray_to_viewport(Vector3(0, 0, 1), Vector3(0, 0, -1))
+    check(not centered_ray.is_empty() and (centered_ray["position"] as Vector2).is_equal_approx(Vector2(100, 50)), "UI ray maps to center")
+    check(centered_ray.get("inside", false), "UI ray reports inside panel bounds")
+    check(ui.map_ray_to_viewport(Vector3(0, 0, 1), Vector3.RIGHT).is_empty(), "UI ray parallel to panel is ignored")
+
+    ui.free()
     manager.free()
