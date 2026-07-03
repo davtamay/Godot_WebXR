@@ -87,7 +87,10 @@ func request_select(interactor, interactable) -> bool:
     if _selections.has(interactor):
         return false
     if not interactable.can_select(interactor):
-        return false
+        if not _try_yield_selection(interactor, interactable):
+            return false
+        if not interactable.can_select(interactor):
+            return false
 
     _selections[interactor] = interactable
     interactable._notify_select_entered(interactor)
@@ -128,3 +131,19 @@ func request_deactivate(interactor) -> bool:
     interactable._notify_activate_exited(interactor)
     interactor._notify_activate_released(interactable)
     return true
+
+func _try_yield_selection(requesting_interactor, interactable) -> bool:
+    if not interactable.has_method("get_selecting_interactors"):
+        return false
+
+    var yielded := false
+    for selecting_interactor in interactable.get_selecting_interactors():
+        if selecting_interactor == requesting_interactor:
+            continue
+        if selecting_interactor == null or not is_instance_valid(selecting_interactor):
+            continue
+        if not selecting_interactor.has_method("should_yield_selection_to"):
+            continue
+        if selecting_interactor.should_yield_selection_to(requesting_interactor, interactable):
+            yielded = request_deselect(selecting_interactor) or yielded
+    return yielded

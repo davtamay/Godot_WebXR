@@ -33,7 +33,8 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
    - Add an `XRSocketInteractor` (`Node3D`) anywhere you need a snap zone.
      Set `socket_radius` and place it at the desired attach pose. Objects with
      `XRGrabInteractable.snap_to_attach = true` snap to the socket when the
-     socket auto-selects them.
+     socket auto-selects them. Use `require_snap_to_attach`, `accepted_groups`,
+     and `rejected_groups` to filter what a socket accepts.
 3. Feedback: connect to `hover_entered`, `hover_exited`, `select_entered`,
    `select_exited`, `activate_entered`, and `activate_exited` on interactors
    or interactables. Interactables also emit XRITK-style `activated` and
@@ -69,6 +70,13 @@ the final interactor releases. Tune `throw_velocity_scale` and
 `max_throw_speed` per object. `throw_sample_frames` smooths noisy hand samples,
 and `throw_angular_velocity_scale` / `max_throw_angular_speed` control spin on
 release.
+
+Socket polish: `XRSocketInteractor.hover_select_delay` adds an XRITK-style
+settle time before auto-select. `socket_active` can disable a socket at
+runtime, `release_selected()` frees the held object, and `eject_selected()`
+releases with optional linear/angular velocity. By default sockets yield their
+selection when another non-socket interactor grabs the held object, so users can
+take snapped objects back out without custom manager code.
 
 Activate/use events: `XRBaseInteractable.activation_mode` controls whether an
 object can be activated only while selected, from hover, from either state, or

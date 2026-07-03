@@ -55,6 +55,7 @@ func _run_all() -> void:
     _test_two_hand_grab_rotate_and_scale()
     _test_grab_track_position_toggle()
     await _test_socket_interactor_auto_selects_and_snaps()
+    await _test_socket_filters_delay_and_takeover()
     _test_visuals_follow_ray_state()
     await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
@@ -882,6 +883,64 @@ func _test_socket_interactor_auto_selects_and_snaps() -> void:
     socket.free()
     grab.free()
     manager.free()
+
+func _test_socket_filters_delay_and_takeover() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var socket := XRSocketInteractor.new()
+    socket.socket_radius = 0.8
+    socket.require_snap_to_attach = true
+    socket.accepted_groups = [&"socket_snap"]
+    socket.hover_select_delay = 0.25
+    socket.position = Vector3.ZERO
+    root.add_child(socket)
+
+    var ignored := XRGrabInteractable.new()
+    ignored.position = Vector3(0.1, 0, 0)
+    _add_box_collider(ignored)
+    root.add_child(ignored)
+
+    var accepted := XRGrabInteractable.new()
+    accepted.snap_to_attach = true
+    accepted.add_to_group(&"socket_snap")
+    accepted.position = Vector3(0.25, 0, 0)
+    _add_box_collider(accepted)
+    root.add_child(accepted)
+
+    await physics_frame
+    await physics_frame
+
+    socket.call("_update_socket", 0.1)
+    check(socket.get_hovered() == accepted, "socket filters out non-snap/non-group interactables")
+    check(socket.get_selected() == null, "socket hover delay prevents immediate auto-select")
+
+    socket.call("_update_socket", 0.25)
+    check(socket.get_selected() == accepted, "socket selects after hover delay")
+    check(socket.get_socket_state().get("state") == &"occupied", "socket state reports occupied after select")
+
+    var hand := FakeInteractor.new()
+    root.add_child(hand)
+    check(manager.request_select(hand, accepted), "hand interactor can take over a socket-held interactable")
+    check(socket.get_selected() == null, "socket yielded selection during hand takeover")
+    check(hand.get_selected() == accepted, "hand owns selection after socket takeover")
+
+    manager.request_deselect(hand)
+    socket.call("_update_socket", 0.016)
+    check(socket.get_selected() == null, "socket respects reselect delay after takeover")
+
+    hand.free()
+    accepted.free()
+    ignored.free()
+    socket.free()
+    manager.free()
+
+func _add_box_collider(parent: Node) -> void:
+    var body := StaticBody3D.new()
+    var shape := CollisionShape3D.new()
+    shape.shape = BoxShape3D.new()
+    body.add_child(shape)
+    parent.add_child(body)
 
 func _test_visuals_follow_ray_state() -> void:
     var manager := XRInteractionManager.new()
