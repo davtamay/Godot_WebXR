@@ -12,7 +12,11 @@ extends Node3D
 @export var inspect_object_path: NodePath
 @export var world_environment_path: NodePath
 @export var enable_legacy_select_visuals := false
-@export var require_hand_tracking := true
+## When true, "hand-tracking" is a REQUIRED session feature and browsers or
+## devices without it refuse the whole session (controller-only headsets,
+## hands disabled in system settings). Off by default: hand tracking is then
+## requested as an optional feature and still granted where available.
+@export var require_hand_tracking := false
 @export var ar_hide_group := "ar_passthrough_hidden"
 
 var _webxr: XRInterface

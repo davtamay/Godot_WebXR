@@ -133,6 +133,8 @@
       const originalRequestSession = navigator.xr.requestSession.bind(navigator.xr);
       navigator.xr.requestSession = async function patchedRequestSession(mode, options) {
         const session = await originalRequestSession(mode, withOptionalDepthSensing(mode, options || {}));
+        // XRSession has no `mode` attribute; remember it here for the depth gate.
+        depthBridge.sessionMode = mode;
         patchSession(session);
         return session;
       };
@@ -162,6 +164,7 @@
         session.addEventListener('end', () => {
           bridge.session = null;
           bridge.referenceSpace = null;
+          depthBridge.sessionMode = '';
           bridge.latest = { frame: bridge.latest.frame || 0, hands: {} };
           depthBridge.latest = {
             frame: depthBridge.latest.frame || 0,
@@ -234,7 +237,7 @@
       }
 
       function updateDepthFromFrame(frame, time) {
-        if (!bridge.referenceSpace || frame.session.mode !== 'immersive-ar') return;
+        if (!bridge.referenceSpace || depthBridge.sessionMode !== 'immersive-ar') return;
         if (depthBridge.lastCaptureTime && time - depthBridge.lastCaptureTime < 250) return;
         depthBridge.lastCaptureTime = time;
 
