@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=38 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
@@ -11,39 +11,108 @@
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd" id="9_line"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd" id="10_reticle"]
 [ext_resource type="Script" path="res://scripts/xr_demo_affordance.gd" id="11_affordance"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
 sky_custom_fov = 70.0
 ambient_light_source = 1
-ambient_light_color = Color(0.7, 0.72, 0.78, 1)
-ambient_light_energy = 0.8
+ambient_light_color = Color(0.66, 0.7, 0.78, 1)
+ambient_light_energy = 0.9
 
 [sub_resource type="StandardMaterial3D" id="Material_floor"]
-albedo_color = Color(0.22, 0.24, 0.27, 1)
-roughness = 0.85
+albedo_color = Color(0.2, 0.22, 0.24, 1)
+roughness = 0.88
 
-[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
-size = Vector2(6, 6)
+[sub_resource type="StandardMaterial3D" id="Material_wall"]
+albedo_color = Color(0.33, 0.36, 0.4, 1)
+roughness = 0.82
 
-[sub_resource type="StandardMaterial3D" id="Material_object"]
+[sub_resource type="StandardMaterial3D" id="Material_platform"]
+albedo_color = Color(0.12, 0.14, 0.16, 1)
+roughness = 0.78
+
+[sub_resource type="StandardMaterial3D" id="Material_instant"]
 albedo_color = Color(0.15, 0.52, 0.85, 1)
 metallic = 0.1
 roughness = 0.4
 
-[sub_resource type="BoxMesh" id="BoxMesh_object"]
-size = Vector3(0.6, 0.6, 0.6)
+[sub_resource type="StandardMaterial3D" id="Material_smooth"]
+albedo_color = Color(0.46, 0.34, 0.9, 1)
+roughness = 0.46
 
-[sub_resource type="BoxShape3D" id="BoxShape_interactable"]
-size = Vector3(0.72, 0.72, 0.72)
+[sub_resource type="StandardMaterial3D" id="Material_rotation"]
+albedo_color = Color(0.12, 0.75, 0.68, 1)
+roughness = 0.38
+
+[sub_resource type="StandardMaterial3D" id="Material_snap"]
+albedo_color = Color(0.92, 0.43, 0.22, 1)
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Material_hover_target"]
+albedo_color = Color(0.88, 0.28, 0.34, 1)
+roughness = 0.55
+
+[sub_resource type="StandardMaterial3D" id="Material_filtered"]
+albedo_color = Color(0.62, 0.36, 0.88, 1)
+roughness = 0.6
 
 [sub_resource type="StandardMaterial3D" id="Material_marker"]
-albedo_color = Color(0.9, 0.72, 0.24, 1)
+albedo_color = Color(0.92, 0.74, 0.25, 1)
 roughness = 0.7
 
+[sub_resource type="StandardMaterial3D" id="Material_dark"]
+albedo_color = Color(0.06, 0.07, 0.08, 1)
+roughness = 0.8
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_floor"]
+size = Vector2(8, 7)
+
+[sub_resource type="BoxMesh" id="BoxMesh_wall"]
+size = Vector3(7.6, 2.4, 0.08)
+
+[sub_resource type="BoxMesh" id="BoxMesh_platform"]
+size = Vector3(0.85, 0.14, 0.85)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cube"]
+size = Vector3(0.42, 0.42, 0.42)
+
+[sub_resource type="BoxMesh" id="BoxMesh_panel"]
+size = Vector3(0.78, 0.52, 0.08)
+
+[sub_resource type="SphereMesh" id="SphereMesh_grab"]
+radius = 0.23
+height = 0.46
+radial_segments = 24
+rings = 12
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_grab"]
+top_radius = 0.2
+bottom_radius = 0.2
+height = 0.48
+radial_segments = 24
+
 [sub_resource type="SphereMesh" id="SphereMesh_marker"]
-radius = 0.12
-height = 0.24
+radius = 0.06
+height = 0.12
+radial_segments = 16
+rings = 8
+
+[sub_resource type="BoxShape3D" id="BoxShape_cube"]
+size = Vector3(0.5, 0.5, 0.5)
+
+[sub_resource type="BoxShape3D" id="BoxShape_panel"]
+size = Vector3(0.86, 0.6, 0.12)
+
+[sub_resource type="SphereShape3D" id="SphereShape_grab"]
+radius = 0.27
+
+[sub_resource type="CylinderShape3D" id="CylinderShape_grab"]
+height = 0.55
+radius = 0.25
+
+[sub_resource type="BoxShape3D" id="BoxShape_floor"]
+size = Vector3(8, 0.08, 7)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -52,8 +121,8 @@ script = ExtResource("1_main")
 environment = SubResource("Environment_webxr")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
-transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 3, 0)
-light_energy = 1.5
+transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.433013, 0.75, 0, 3.2, 0)
+light_energy = 1.65
 shadow_enabled = true
 
 [node name="XRInteractionManager" type="Node" parent="."]
@@ -68,7 +137,7 @@ right_controller_path = NodePath("../XROrigin3D/RightController")
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
-transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 1.6, 3.0)
+transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 1.6, 3)
 current = true
 fov = 70.0
 
@@ -102,6 +171,7 @@ script = ExtResource("10_reticle")
 script = ExtResource("7_ray")
 input_adapter_path = NodePath("../../WebXRInputAdapter")
 hand = 1
+interaction_layers = 3
 
 [node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
 script = ExtResource("9_line")
@@ -110,25 +180,171 @@ color = Color(1, 0.58, 0.2, 0.85)
 [node name="Reticle" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
 script = ExtResource("10_reticle")
 
-[node name="Floor" type="MeshInstance3D" parent="."]
+[node name="SampleEnvironment" type="Node3D" parent="."]
+
+[node name="Floor" type="MeshInstance3D" parent="SampleEnvironment"]
 mesh = SubResource("PlaneMesh_floor")
 surface_material_override/0 = SubResource("Material_floor")
 
+[node name="FloorBody" type="StaticBody3D" parent="SampleEnvironment"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SampleEnvironment/FloorBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.06, 0)
+shape = SubResource("BoxShape_floor")
+
+[node name="BackWall" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -3.25)
+mesh = SubResource("BoxMesh_wall")
+surface_material_override/0 = SubResource("Material_wall")
+
+[node name="InstantPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0.07, -1.75)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
+[node name="SmoothPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 0.07, -1.95)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
+[node name="RotationPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.07, -1.95)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
+[node name="SnapPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, 0.07, -1.75)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
+[node name="LayerPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.55, 0.07, -1.45)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
+[node name="InstantLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -2.25, 0.45, -2.22)
+text = "INSTANT GRAB"
+font_size = 28
+
+[node name="SmoothLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -1.05, 0.45, -2.42)
+text = "SMOOTH FOLLOW"
+font_size = 28
+
+[node name="RotationLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 0.15, 0.45, -2.42)
+text = "TRACK ROTATION"
+font_size = 28
+
+[node name="SnapLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 1.35, 0.45, -2.22)
+text = "SNAP GRIP"
+font_size = 28
+
+[node name="LayerLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 2.55, 0.45, -1.92)
+text = "RIGHT HAND LAYER"
+font_size = 28
+
+[node name="HoverLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.9, -3.15)
+text = "HOVER / SELECT TARGET"
+font_size = 34
+
 [node name="InspectObject" type="Node3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1.8)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2.25, 0.58, -1.75)
 script = ExtResource("8_grab")
 
 [node name="Mesh" type="MeshInstance3D" parent="InspectObject"]
-mesh = SubResource("BoxMesh_object")
-surface_material_override/0 = SubResource("Material_object")
+mesh = SubResource("BoxMesh_cube")
+surface_material_override/0 = SubResource("Material_instant")
 
 [node name="InteractableBody" type="StaticBody3D" parent="InspectObject"]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="InspectObject/InteractableBody"]
-shape = SubResource("BoxShape_interactable")
+shape = SubResource("BoxShape_cube")
+
+[node name="SmoothGrab" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 0.58, -1.95)
+script = ExtResource("8_grab")
+movement_type = 1
+smoothing_speed = 8.0
+
+[node name="Mesh" type="MeshInstance3D" parent="SmoothGrab"]
+mesh = SubResource("SphereMesh_grab")
+surface_material_override/0 = SubResource("Material_smooth")
+
+[node name="InteractableBody" type="StaticBody3D" parent="SmoothGrab"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SmoothGrab/InteractableBody"]
+shape = SubResource("SphereShape_grab")
+
+[node name="RotationGrab" type="Node3D" parent="."]
+transform = Transform3D(0.92388, 0, 0.382683, 0, 1, 0, -0.382683, 0, 0.92388, 0.15, 0.58, -1.95)
+script = ExtResource("8_grab")
+track_rotation = true
+
+[node name="Mesh" type="MeshInstance3D" parent="RotationGrab"]
+mesh = SubResource("CylinderMesh_grab")
+surface_material_override/0 = SubResource("Material_rotation")
+
+[node name="InteractableBody" type="StaticBody3D" parent="RotationGrab"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="RotationGrab/InteractableBody"]
+shape = SubResource("CylinderShape_grab")
+
+[node name="SnapGripGrab" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, 0.58, -1.75)
+script = ExtResource("8_grab")
+attach_transform_path = NodePath("GripPoint")
+snap_to_attach = true
+
+[node name="Mesh" type="MeshInstance3D" parent="SnapGripGrab"]
+mesh = SubResource("BoxMesh_cube")
+surface_material_override/0 = SubResource("Material_snap")
+
+[node name="GripPoint" type="Node3D" parent="SnapGripGrab"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.32)
+
+[node name="GripMarker" type="MeshInstance3D" parent="SnapGripGrab/GripPoint"]
+mesh = SubResource("SphereMesh_marker")
+surface_material_override/0 = SubResource("Material_marker")
+
+[node name="InteractableBody" type="StaticBody3D" parent="SnapGripGrab"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SnapGripGrab/InteractableBody"]
+shape = SubResource("BoxShape_cube")
+
+[node name="LayerTwoGrab" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.55, 0.58, -1.45)
+script = ExtResource("8_grab")
+interaction_layers = 2
+
+[node name="Mesh" type="MeshInstance3D" parent="LayerTwoGrab"]
+mesh = SubResource("BoxMesh_cube")
+surface_material_override/0 = SubResource("Material_filtered")
+
+[node name="InteractableBody" type="StaticBody3D" parent="LayerTwoGrab"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="LayerTwoGrab/InteractableBody"]
+shape = SubResource("BoxShape_cube")
+
+[node name="HoverTarget" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.25, -3.16)
+script = ExtResource("12_base_interactable")
+
+[node name="Mesh" type="MeshInstance3D" parent="HoverTarget"]
+mesh = SubResource("BoxMesh_panel")
+surface_material_override/0 = SubResource("Material_hover_target")
+
+[node name="InteractableBody" type="StaticBody3D" parent="HoverTarget"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="HoverTarget/InteractableBody"]
+shape = SubResource("BoxShape_panel")
 
 [node name="MarkerSphere" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1, 0.12, -1.2)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.12, -0.9)
 mesh = SubResource("SphereMesh_marker")
 surface_material_override/0 = SubResource("Material_marker")
 
@@ -138,11 +354,47 @@ enter_xr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContai
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 inspect_object_path = NodePath("../InspectObject/Mesh")
 
-[node name="DemoAffordance" type="Node" parent="."]
+[node name="DemoAffordanceInstant" type="Node" parent="."]
 script = ExtResource("11_affordance")
 interactable_path = NodePath("../InspectObject")
 mesh_path = NodePath("../InspectObject/Mesh")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Instant Grab Cube"
+
+[node name="DemoAffordanceSmooth" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../SmoothGrab")
+mesh_path = NodePath("../SmoothGrab/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Smooth Follow Sphere"
+
+[node name="DemoAffordanceRotation" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../RotationGrab")
+mesh_path = NodePath("../RotationGrab/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Rotation Follow Cylinder"
+
+[node name="DemoAffordanceSnap" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../SnapGripGrab")
+mesh_path = NodePath("../SnapGripGrab/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Snap Grip Cube"
+
+[node name="DemoAffordanceLayer" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../LayerTwoGrab")
+mesh_path = NodePath("../LayerTwoGrab/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Layer Filtered Cube"
+
+[node name="DemoAffordanceHover" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../HoverTarget")
+mesh_path = NodePath("../HoverTarget/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Hover Select Panel"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
@@ -150,7 +402,7 @@ status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer
 offsets_preset = 1
 offset_left = 24.0
 offset_top = 24.0
-offset_right = 524.0
+offset_right = 560.0
 offset_bottom = 512.0
 
 [node name="MarginContainer" type="MarginContainer" parent="CanvasLayer/Panel"]
@@ -165,12 +417,12 @@ layout_mode = 2
 
 [node name="TitleLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
-text = "Godot WebXR Feasibility"
+text = "Godot XR Interaction Toolkit Sample"
 
 [node name="StatusLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Starting..."
+text = "Enter WebXR, then use rays to hover and grab sample objects."
 autowrap_mode = 3
 
 [node name="EnterXRButton" type="Button" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]

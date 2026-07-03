@@ -6,6 +6,7 @@ extends Node
 @export var interactable_path: NodePath
 @export var mesh_path: NodePath
 @export var status_label_path: NodePath
+@export var display_name := ""
 
 var _interactable: Node
 var _mesh: MeshInstance3D
@@ -41,22 +42,25 @@ func _make_material(color: Color) -> StandardMaterial3D:
 func _on_hover_entered(_interactor) -> void:
     if not _interactable.is_selected():
         _mesh.set_surface_override_material(0, _hover_material)
-    _set_status("Hover: %s" % _interactable.name)
+    _set_status("Hover: %s" % _name())
 
 func _on_hover_exited(_interactor) -> void:
     if not _interactable.is_selected():
         _mesh.set_surface_override_material(0, _base_material)
-    _set_status("Hover exit: %s" % _interactable.name)
+    _set_status("Hover exit: %s" % _name())
 
 func _on_select_entered(_interactor) -> void:
     _mesh.set_surface_override_material(0, _select_material)
-    _set_status("Grab: %s" % _interactable.name)
+    _set_status("Grab: %s" % _name())
 
 func _on_select_exited(_interactor) -> void:
     _mesh.set_surface_override_material(0, _hover_material if _interactable.is_hovered() else _base_material)
-    _set_status("Release: %s" % _interactable.name)
+    _set_status("Release: %s" % _name())
 
 func _set_status(message: String) -> void:
     if _status_label:
         _status_label.text = message
     print(message)
+
+func _name() -> String:
+    return display_name if not display_name.is_empty() else _interactable.name
