@@ -13,6 +13,9 @@ const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolki
 ## true (prototype-validated on Quest 3): prefer the computed hand ray over the
 ## controller aim pose when both report tracking. false: controller aim wins.
 @export var prefer_hand_ray := true
+@export var synthesize_pinch_select := true
+@export var pinch_start_distance := 0.035
+@export var pinch_end_distance := 0.055
 
 const TRACKER_PATHS := {
     Hand.LEFT: &"/user/hand_tracker/left",
@@ -22,6 +25,14 @@ const TRACKER_PATHS := {
 var _webxr
 var _origin: Node3D
 var _controllers := {}
+var _select_down := {
+    Hand.LEFT: false,
+    Hand.RIGHT: false,
+}
+var _select_source := {
+    Hand.LEFT: "",
+    Hand.RIGHT: "",
+}
 
 func _ready() -> void:
     _origin = get_node_or_null(xr_origin_path) as Node3D
@@ -36,6 +47,11 @@ func _ready() -> void:
 
     _connect_interface_signal(&"selectstart", _on_selectstart)
     _connect_interface_signal(&"selectend", _on_selectend)
+
+func _process(_delta: float) -> void:
+    if synthesize_pinch_select:
+        _update_synthetic_pinch_select(Hand.LEFT)
+        _update_synthetic_pinch_select(Hand.RIGHT)
 
 func get_aim_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id):
@@ -71,12 +87,16 @@ func _connect_interface_signal(signal_name: StringName, callback: Callable) -> v
 func _on_selectstart(input_source_id: int) -> void:
     var hand_id := _hand_for_input_source(input_source_id)
     if hand_id >= 0:
-        select_started.emit(hand_id)
+        _emit_select_started(hand_id, "webxr")
+    else:
+        _broadcast_select_started("webxr")
 
 func _on_selectend(input_source_id: int) -> void:
     var hand_id := _hand_for_input_source(input_source_id)
     if hand_id >= 0:
-        select_ended.emit(hand_id)
+        _emit_select_ended(hand_id, "webxr")
+    else:
+        _broadcast_select_ended("webxr")
 
 func _hand_for_input_source(input_source_id: int) -> int:
     if _webxr == null:
@@ -86,11 +106,17 @@ func _hand_for_input_source(input_source_id: int) -> int:
     if tracker == null:
         return -1
 
-    match tracker.hand:
+    var tracker_hand = tracker.hand
+    var tracker_hand_text := str(tracker_hand).to_lower()
+    match tracker_hand:
         XRPositionalTracker.TRACKER_HAND_LEFT:
             return Hand.LEFT
         XRPositionalTracker.TRACKER_HAND_RIGHT:
             return Hand.RIGHT
+    if tracker_hand_text.find("left") >= 0:
+        return Hand.LEFT
+    if tracker_hand_text.find("right") >= 0:
+        return Hand.RIGHT
     return -1
 
 func _controller_aim_pose(hand_id: int) -> Dictionary:
@@ -127,3 +153,63 @@ func _hand_aim_pose(hand_id: int) -> Dictionary:
 
 func _valid_hand(hand_id: int) -> bool:
     return hand_id == Hand.LEFT or hand_id == Hand.RIGHT
+
+func _update_synthetic_pinch_select(hand_id: int) -> void:
+    if not _valid_hand(hand_id):
+        return
+    if _select_source.get(hand_id, "") == "webxr":
+        return
+
+    var distance := _pinch_distance(hand_id)
+    if distance < 0.0:
+        if _select_source.get(hand_id, "") == "synthetic":
+            _emit_select_ended(hand_id, "synthetic")
+        return
+
+    if not _select_down.get(hand_id, false) and distance <= pinch_start_distance:
+        _emit_select_started(hand_id, "synthetic")
+    elif _select_source.get(hand_id, "") == "synthetic" and distance >= pinch_end_distance:
+        _emit_select_ended(hand_id, "synthetic")
+
+func _pinch_distance(hand_id: int) -> float:
+    if not _valid_hand(hand_id):
+        return -1.0
+
+    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    if tracker == null or not tracker.has_tracking_data:
+        return -1.0
+
+    var index_tip := XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP
+    var thumb_tip := XRHandTracker.HAND_JOINT_THUMB_TIP
+    if not XRHandGestureProvider.joint_position_valid(tracker, index_tip):
+        return -1.0
+    if not XRHandGestureProvider.joint_position_valid(tracker, thumb_tip):
+        return -1.0
+
+    var index_position := tracker.get_hand_joint_transform(index_tip).origin
+    var thumb_position := tracker.get_hand_joint_transform(thumb_tip).origin
+    return index_position.distance_to(thumb_position)
+
+func _emit_select_started(hand_id: int, source: String) -> void:
+    if not _valid_hand(hand_id) or _select_down.get(hand_id, false):
+        return
+    _select_down[hand_id] = true
+    _select_source[hand_id] = source
+    select_started.emit(hand_id)
+
+func _emit_select_ended(hand_id: int, source: String) -> void:
+    if not _valid_hand(hand_id) or not _select_down.get(hand_id, false):
+        return
+    if source == "synthetic" and _select_source.get(hand_id, "") == "webxr":
+        return
+    _select_down[hand_id] = false
+    _select_source[hand_id] = ""
+    select_ended.emit(hand_id)
+
+func _broadcast_select_started(source: String) -> void:
+    _emit_select_started(Hand.LEFT, source)
+    _emit_select_started(Hand.RIGHT, source)
+
+func _broadcast_select_ended(source: String) -> void:
+    _emit_select_ended(Hand.LEFT, source)
+    _emit_select_ended(Hand.RIGHT, source)

@@ -27,6 +27,7 @@ func _run_all() -> void:
     _test_layer_mask()
     _test_hand_ray_geometry()
     _test_manager_registry_and_arbitration()
+    await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
     _test_ray_grab_distance_clamp()
     await _test_ray_hover_and_grab_integration()
@@ -81,6 +82,11 @@ func _test_hand_ray_geometry() -> void:
     var up_basis := XRHandGestureProvider.basis_from_forward(Vector3.UP)
     check((-up_basis.z).is_equal_approx(Vector3.UP), "basis_from_forward survives the straight-up singularity")
 
+    tracker.has_tracking_data = true
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_WRIST, Vector3.ZERO, 0)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_PALM, Vector3(0, 0, -0.05), valid)
+    check(not XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "palm can seed hand ray before wrist is valid")
+
 func _set_joint(tracker: XRHandTracker, joint: int, position: Vector3, flags: int) -> void:
     tracker.set_hand_joint_transform(joint, Transform3D(Basis.IDENTITY, position))
     tracker.set_hand_joint_flags(joint, flags)
@@ -122,6 +128,20 @@ func _test_manager_registry_and_arbitration() -> void:
 
     interactor_a.free()
     interactor_b.free()
+    interactable.free()
+    manager.free()
+
+func _test_interactable_late_collider_registration() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var body := StaticBody3D.new()
+    interactable.add_child(body)
+    await process_frame
+
+    check(manager.get_interactable_for_collider(body) == interactable, "collider added after parented interactable is registered")
+
     interactable.free()
     manager.free()
 

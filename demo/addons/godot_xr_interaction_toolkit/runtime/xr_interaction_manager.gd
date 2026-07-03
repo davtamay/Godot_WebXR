@@ -59,7 +59,17 @@ func unregister_interactable(interactable) -> void:
 func get_interactable_for_collider(collider: Object):
     if collider == null:
         return null
-    return _collider_map.get(collider.get_instance_id())
+    var registered = _collider_map.get(collider.get_instance_id())
+    if registered != null and is_instance_valid(registered):
+        return registered
+
+    var node := collider as Node
+    while node:
+        if node.is_inside_tree() and node.has_method("can_hover") and node.has_method("get_colliders"):
+            register_interactable(node)
+            return node
+        node = node.get_parent()
+    return null
 
 func request_select(interactor, interactable) -> bool:
     if interactor == null or interactable == null:

@@ -26,9 +26,14 @@ func _notification(what: int) -> void:
         _register_with_manager()
     elif what == NOTIFICATION_UNPARENTED:
         _unregister_from_manager()
+    elif what == NOTIFICATION_CHILD_ORDER_CHANGED and is_inside_tree():
+        _register_with_manager(true)
 
 func _enter_tree() -> void:
     _register_with_manager()
+
+func _ready() -> void:
+    _register_with_manager(true)
 
 func _exit_tree() -> void:
     _unregister_from_manager()
@@ -38,12 +43,12 @@ func _unregister_from_manager() -> void:
         _registered_manager.unregister_interactable(self)
         _registered_manager = null
 
-func _register_with_manager() -> void:
+func _register_with_manager(force_refresh := false) -> void:
     var manager = XRInteractionManager.find(self)
     if manager == null:
         push_warning("%s: no XRInteractionManager in the scene tree." % name)
         return
-    if manager == _registered_manager:
+    if manager == _registered_manager and not force_refresh:
         return
     if _registered_manager:
         _registered_manager.unregister_interactable(self)

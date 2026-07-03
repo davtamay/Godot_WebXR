@@ -24,16 +24,18 @@ static func get_hand_ray_pose(tracker: XRHandTracker) -> Dictionary:
     var palm := XRHandTracker.HAND_JOINT_PALM
     var index_tip := XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP
     var thumb_tip := XRHandTracker.HAND_JOINT_THUMB_TIP
-    if not joint_position_valid(tracker, wrist) or not joint_position_valid(tracker, index_tip):
+    if not joint_position_valid(tracker, index_tip):
+        return {}
+    if not joint_position_valid(tracker, palm) and not joint_position_valid(tracker, wrist):
         return {}
 
     var cursor := tracker.get_hand_joint_transform(index_tip).origin
     if joint_position_valid(tracker, thumb_tip):
         cursor = (tracker.get_hand_joint_transform(thumb_tip).origin + cursor) * 0.5
 
-    var direction_seed := tracker.get_hand_joint_transform(wrist).origin
-    if joint_position_valid(tracker, palm):
-        direction_seed = tracker.get_hand_joint_transform(palm).origin
+    var direction_seed := tracker.get_hand_joint_transform(palm).origin
+    if not joint_position_valid(tracker, palm):
+        direction_seed = tracker.get_hand_joint_transform(wrist).origin
 
     var direction := cursor - direction_seed
     if direction.length_squared() < 0.000001:
