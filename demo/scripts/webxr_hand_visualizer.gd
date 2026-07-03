@@ -10,11 +10,12 @@ extends Node3D
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
 @export var render_fallback_hand_mesh := false
-@export var stale_joint_pose_max_distance := 0.65
+@export var stale_joint_pose_max_distance := 0.0
 @export var startup_mesh_warmup_seconds := 1.5
-@export var startup_live_anchor_delta := 0.015
+@export var startup_live_anchor_delta := 0.0
 @export var left_fallback_pose_path: NodePath
 @export var right_fallback_pose_path: NodePath
+@export var world_status_label_path: NodePath
 
 const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
@@ -77,6 +78,7 @@ const BONE_PAIRS := [
 ]
 
 var _status_label: Label
+var _world_status_label: Label
 var _joint_mesh: SphereMesh
 var _bone_mesh: CylinderMesh
 var _hands := {}
@@ -88,6 +90,7 @@ var _xr_elapsed := 0.0
 
 func _ready() -> void:
     _status_label = get_node_or_null(status_label_path) as Label
+    _world_status_label = get_node_or_null(world_status_label_path) as Label
     _create_shared_meshes()
     _create_hand("Left", XRInputAdapter.Hand.LEFT, left_fallback_pose_path, Color(0.15, 0.72, 1.0, 1.0))
     _create_hand("Right", XRInputAdapter.Hand.RIGHT, right_fallback_pose_path, Color(1.0, 0.48, 0.18, 1.0))
@@ -481,4 +484,6 @@ func _basis_from_y_axis(direction: Vector3) -> Basis:
 func _set_status(message: String) -> void:
     if _status_label:
         _status_label.text = message
+    if _world_status_label:
+        _world_status_label.text = message
     print(message)

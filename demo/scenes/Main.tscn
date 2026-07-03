@@ -171,6 +171,7 @@ script = ExtResource("4_hands")
 status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 left_fallback_pose_path = NodePath("../LeftController")
 right_fallback_pose_path = NodePath("../RightController")
+world_status_label_path = NodePath("../../XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer/StateLabel")
 
 [node name="LeftDirectInteractor" type="Node3D" parent="XROrigin3D"]
 script = ExtResource("16_direct")
