@@ -76,7 +76,10 @@ func _test_hand_ray_geometry() -> void:
     _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), valid)
 
     tracker.has_tracking_data = false
-    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "no tracking data yields empty pose")
+    check(not XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "valid joints seed a ray before tracker-level data flips")
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), 0)
+    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "invalid joints yield empty pose")
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), valid)
 
     var forward := Vector3(1, 0, 0)
     var ray_basis := XRHandGestureProvider.basis_from_forward(forward)

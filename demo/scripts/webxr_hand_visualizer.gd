@@ -168,14 +168,14 @@ func _create_material(color: Color) -> StandardMaterial3D:
 func _update_hand(hand_data: Dictionary) -> bool:
     var root := hand_data["root"] as Node3D
     var tracker := XRServer.get_tracker(hand_data["tracker_path"]) as XRHandTracker
-    if tracker == null or not tracker.has_tracking_data:
+    if tracker == null:
         root.visible = false
         return false
 
-    root.visible = true
     var joint_positions := {}
     var joint_valid := {}
     var joint_nodes := hand_data["joints"] as Dictionary
+    var valid_joint_count := 0
 
     for joint_id in HAND_JOINTS:
         var valid := _is_joint_position_valid(tracker, joint_id)
@@ -185,11 +185,17 @@ func _update_hand(hand_data: Dictionary) -> bool:
         if not valid:
             continue
 
+        valid_joint_count += 1
         var joint_transform := tracker.get_hand_joint_transform(joint_id)
         var radius: float = clamp(tracker.get_hand_joint_radius(joint_id), joint_radius_min, joint_radius_max)
         joint_positions[joint_id] = joint_transform.origin
         joint_node.transform = Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * radius), joint_transform.origin)
 
+    if valid_joint_count == 0:
+        root.visible = false
+        return false
+
+    root.visible = true
     _update_bones(hand_data["bones"], joint_positions, joint_valid)
     _update_pinch_materials(hand_data, joint_positions, joint_valid)
     return true

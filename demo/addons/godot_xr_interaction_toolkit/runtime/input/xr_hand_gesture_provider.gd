@@ -17,7 +17,7 @@ static func joint_position_valid(tracker: XRHandTracker, joint: int) -> bool:
     return (tracker.get_hand_joint_flags(joint) & POSITION_VALID_FLAGS) != 0
 
 static func get_hand_ray_pose(tracker: XRHandTracker) -> Dictionary:
-    if tracker == null or not tracker.has_tracking_data:
+    if tracker == null:
         return {}
 
     var wrist := XRHandTracker.HAND_JOINT_WRIST

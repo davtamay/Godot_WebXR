@@ -176,7 +176,7 @@ func _pinch_distance(hand_id: int) -> float:
         return -1.0
 
     var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
-    if tracker == null or not tracker.has_tracking_data:
+    if tracker == null:
         return -1.0
 
     var index_tip := XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP
