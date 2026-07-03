@@ -9,6 +9,7 @@ extends Node3D
 @export var bone_radius := 0.006
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
+@export var prefer_browser_hand_bridge := true
 @export var render_fallback_hand_mesh := false
 @export var render_fallback_for_unproven_joints := true
 @export var stale_joint_pose_max_distance := 0.0
@@ -20,6 +21,34 @@ extends Node3D
 
 const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
+
+const BROWSER_HAND_JOINT_NAMES := {
+    XRHandTracker.HAND_JOINT_WRIST: "wrist",
+    XRHandTracker.HAND_JOINT_THUMB_METACARPAL: "thumb-metacarpal",
+    XRHandTracker.HAND_JOINT_THUMB_PHALANX_PROXIMAL: "thumb-phalanx-proximal",
+    XRHandTracker.HAND_JOINT_THUMB_PHALANX_DISTAL: "thumb-phalanx-distal",
+    XRHandTracker.HAND_JOINT_THUMB_TIP: "thumb-tip",
+    XRHandTracker.HAND_JOINT_INDEX_FINGER_METACARPAL: "index-finger-metacarpal",
+    XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL: "index-finger-phalanx-proximal",
+    XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_INTERMEDIATE: "index-finger-phalanx-intermediate",
+    XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_DISTAL: "index-finger-phalanx-distal",
+    XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP: "index-finger-tip",
+    XRHandTracker.HAND_JOINT_MIDDLE_FINGER_METACARPAL: "middle-finger-metacarpal",
+    XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_PROXIMAL: "middle-finger-phalanx-proximal",
+    XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_INTERMEDIATE: "middle-finger-phalanx-intermediate",
+    XRHandTracker.HAND_JOINT_MIDDLE_FINGER_PHALANX_DISTAL: "middle-finger-phalanx-distal",
+    XRHandTracker.HAND_JOINT_MIDDLE_FINGER_TIP: "middle-finger-tip",
+    XRHandTracker.HAND_JOINT_RING_FINGER_METACARPAL: "ring-finger-metacarpal",
+    XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_PROXIMAL: "ring-finger-phalanx-proximal",
+    XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_INTERMEDIATE: "ring-finger-phalanx-intermediate",
+    XRHandTracker.HAND_JOINT_RING_FINGER_PHALANX_DISTAL: "ring-finger-phalanx-distal",
+    XRHandTracker.HAND_JOINT_RING_FINGER_TIP: "ring-finger-tip",
+    XRHandTracker.HAND_JOINT_PINKY_FINGER_METACARPAL: "pinky-finger-metacarpal",
+    XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_PROXIMAL: "pinky-finger-phalanx-proximal",
+    XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_INTERMEDIATE: "pinky-finger-phalanx-intermediate",
+    XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_DISTAL: "pinky-finger-phalanx-distal",
+    XRHandTracker.HAND_JOINT_PINKY_FINGER_TIP: "pinky-finger-tip",
+}
 
 const HAND_JOINTS := [
     XRHandTracker.HAND_JOINT_PALM,
@@ -88,10 +117,14 @@ var _last_tracking_summary := ""
 var _status_elapsed := 0.0
 var _xr_active := false
 var _xr_elapsed := 0.0
+var _js_bridge
+var _browser_hand_snapshot := {}
 
 func _ready() -> void:
     _status_label = get_node_or_null(status_label_path) as Label
     _world_status_label = get_node_or_null(world_status_label_path) as Label
+    if OS.has_feature("web") and Engine.has_singleton("JavaScriptBridge"):
+        _js_bridge = Engine.get_singleton("JavaScriptBridge")
     _create_shared_meshes()
     _create_hand("Left", XRInputAdapter.Hand.LEFT, left_fallback_pose_path, Color(0.15, 0.72, 1.0, 1.0))
     _create_hand("Right", XRInputAdapter.Hand.RIGHT, right_fallback_pose_path, Color(1.0, 0.48, 0.18, 1.0))
@@ -114,6 +147,8 @@ func _process(delta: float) -> void:
             _reset_hand_startup_state(hand_data)
     else:
         _xr_elapsed += delta
+
+    _refresh_browser_hand_snapshot()
 
     var active_hands: Array[String] = []
     for hand_name in _hands.keys():
@@ -203,6 +238,10 @@ func _update_hand(hand_data: Dictionary) -> bool:
     var hand_name: String = hand_data["label"]
     var hand_id: int = hand_data["hand"]
     var root := hand_data["root"] as Node3D
+
+    if prefer_browser_hand_bridge and _update_hand_from_browser_bridge(hand_data):
+        return true
+
     var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
         if render_fallback_hand_mesh and _update_fallback_hand(hand_data, "no joints"):
@@ -268,6 +307,119 @@ func _update_hand(hand_data: Dictionary) -> bool:
 
 func _is_joint_position_valid(tracker: XRHandTracker, joint_id: int) -> bool:
     return XRHandTrackerResolver.joint_position_valid(tracker, joint_id)
+
+func _refresh_browser_hand_snapshot() -> void:
+    if _js_bridge == null:
+        _browser_hand_snapshot = {}
+        return
+
+    var json_text = _js_bridge.eval("JSON.stringify(window.CompanyWebXRHandBridge && window.CompanyWebXRHandBridge.latest || null)", true)
+    var parsed = JSON.parse_string(str(json_text))
+    if typeof(parsed) == TYPE_DICTIONARY:
+        _browser_hand_snapshot = parsed
+    else:
+        _browser_hand_snapshot = {}
+
+func _update_hand_from_browser_bridge(hand_data: Dictionary) -> bool:
+    if _browser_hand_snapshot.is_empty():
+        return false
+
+    var hands = _browser_hand_snapshot.get("hands", {})
+    if typeof(hands) != TYPE_DICTIONARY:
+        return false
+
+    var hand_name: String = hand_data["label"]
+    var hand_id: int = hand_data["hand"]
+    var side := "right" if hand_id == XRInputAdapter.Hand.RIGHT else "left"
+    var hand_snapshot = hands.get(side, {})
+    if typeof(hand_snapshot) != TYPE_DICTIONARY:
+        return false
+
+    var joints = hand_snapshot.get("joints", {})
+    if typeof(joints) != TYPE_DICTIONARY:
+        return false
+
+    var root := hand_data["root"] as Node3D
+    var joint_nodes := hand_data["joints"] as Dictionary
+    var joint_positions := {}
+    var joint_valid := {}
+    var valid_joint_count := 0
+
+    for joint_id in HAND_JOINTS:
+        var sample := _browser_bridge_joint_sample(joints, joint_id)
+        var joint_node := joint_nodes[joint_id] as MeshInstance3D
+        if sample.is_empty():
+            joint_node.visible = false
+            joint_valid[joint_id] = false
+            continue
+
+        var joint_position := _browser_bridge_sample_position(sample)
+        var radius: float = clamp(float(sample.get("r", joint_radius_min)), joint_radius_min, joint_radius_max)
+        joint_positions[joint_id] = joint_position
+        joint_valid[joint_id] = true
+        joint_node.visible = true
+        joint_node.transform = Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * radius), joint_position)
+        valid_joint_count += 1
+
+    if valid_joint_count == 0:
+        root.visible = false
+        return false
+
+    root.visible = true
+    var frame_number := int(_browser_hand_snapshot.get("frame", 0))
+    _last_hand_debug[hand_name] = "%d browser joints frame=%d" % [valid_joint_count, frame_number]
+    _update_bones(hand_data["bones"], joint_positions, joint_valid)
+    _update_pinch_materials(hand_data, joint_positions, joint_valid)
+    return true
+
+func _browser_bridge_joint_sample(joints: Dictionary, joint_id: int) -> Dictionary:
+    if joint_id == XRHandTracker.HAND_JOINT_PALM:
+        return _browser_bridge_palm_sample(joints)
+
+    var joint_name: String = BROWSER_HAND_JOINT_NAMES.get(joint_id, "")
+    if joint_name.is_empty():
+        return {}
+
+    var sample = joints.get(joint_name, {})
+    return sample if typeof(sample) == TYPE_DICTIONARY else {}
+
+func _browser_bridge_palm_sample(joints: Dictionary) -> Dictionary:
+    var names := [
+        "wrist",
+        "index-finger-metacarpal",
+        "middle-finger-metacarpal",
+        "ring-finger-metacarpal",
+        "pinky-finger-metacarpal",
+    ]
+    var position := Vector3.ZERO
+    var radius := 0.0
+    var count := 0
+    for joint_name in names:
+        var sample = joints.get(joint_name, {})
+        if typeof(sample) != TYPE_DICTIONARY:
+            continue
+        position += _browser_bridge_sample_position(sample)
+        radius += float(sample.get("r", joint_radius_min))
+        count += 1
+
+    if count == 0:
+        return {}
+
+    position /= float(count)
+    radius /= float(count)
+    return {
+        "x": position.x,
+        "y": position.y,
+        "z": position.z,
+        "r": radius,
+    }
+
+func _browser_bridge_sample_position(sample: Dictionary) -> Vector3:
+    return Vector3(
+        float(sample.get("x", 0.0)),
+        float(sample.get("y", 0.0)),
+        float(sample.get("z", 0.0))
+    )
 
 func _reset_hand_startup_state(hand_data: Dictionary) -> void:
     hand_data["last_anchor"] = null

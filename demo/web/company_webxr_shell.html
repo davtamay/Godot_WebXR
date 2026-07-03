@@ -81,6 +81,118 @@
   <script src="runtime_metrics_overlay.js"></script>
   <script src="$GODOT_URL"></script>
   <script>
+    (function installRawWebXRHandBridge() {
+      const handJointNames = [
+        'wrist',
+        'thumb-metacarpal',
+        'thumb-phalanx-proximal',
+        'thumb-phalanx-distal',
+        'thumb-tip',
+        'index-finger-metacarpal',
+        'index-finger-phalanx-proximal',
+        'index-finger-phalanx-intermediate',
+        'index-finger-phalanx-distal',
+        'index-finger-tip',
+        'middle-finger-metacarpal',
+        'middle-finger-phalanx-proximal',
+        'middle-finger-phalanx-intermediate',
+        'middle-finger-phalanx-distal',
+        'middle-finger-tip',
+        'ring-finger-metacarpal',
+        'ring-finger-phalanx-proximal',
+        'ring-finger-phalanx-intermediate',
+        'ring-finger-phalanx-distal',
+        'ring-finger-tip',
+        'pinky-finger-metacarpal',
+        'pinky-finger-phalanx-proximal',
+        'pinky-finger-phalanx-intermediate',
+        'pinky-finger-phalanx-distal',
+        'pinky-finger-tip',
+      ];
+
+      const bridge = {
+        available: !!navigator.xr,
+        referenceSpaceType: '',
+        latest: { frame: 0, hands: {} },
+      };
+      window.CompanyWebXRHandBridge = bridge;
+
+      if (!navigator.xr || navigator.xr.__companyHandBridgePatched) return;
+      navigator.xr.__companyHandBridgePatched = true;
+
+      const originalRequestSession = navigator.xr.requestSession.bind(navigator.xr);
+      navigator.xr.requestSession = async function patchedRequestSession(mode, options) {
+        const session = await originalRequestSession(mode, options);
+        patchSession(session);
+        return session;
+      };
+
+      function patchSession(session) {
+        if (session.__companyHandBridgePatched) return;
+        session.__companyHandBridgePatched = true;
+        bridge.session = session;
+
+        const originalRequestReferenceSpace = session.requestReferenceSpace.bind(session);
+        session.requestReferenceSpace = async function patchedRequestReferenceSpace(type) {
+          const space = await originalRequestReferenceSpace(type);
+          bridge.referenceSpace = space;
+          bridge.referenceSpaceType = type;
+          return space;
+        };
+
+        const originalRequestAnimationFrame = session.requestAnimationFrame.bind(session);
+        session.requestAnimationFrame = function patchedRequestAnimationFrame(callback) {
+          return originalRequestAnimationFrame(function handBridgeFrame(time, frame) {
+            updateHandsFromFrame(frame, time);
+            return callback(time, frame);
+          });
+        };
+
+        session.addEventListener('end', () => {
+          bridge.session = null;
+          bridge.referenceSpace = null;
+          bridge.latest = { frame: bridge.latest.frame || 0, hands: {} };
+        });
+      }
+
+      function updateHandsFromFrame(frame, time) {
+        if (!bridge.referenceSpace) return;
+
+        const hands = {};
+        for (const inputSource of frame.session.inputSources) {
+          if (!inputSource.hand) continue;
+          const handedness = inputSource.handedness === 'right' ? 'right' : 'left';
+          const joints = {};
+          let jointCount = 0;
+
+          for (const jointName of handJointNames) {
+            const jointSpace = inputSource.hand.get(jointName);
+            if (!jointSpace) continue;
+            const pose = frame.getJointPose(jointSpace, bridge.referenceSpace);
+            if (!pose) continue;
+
+            const p = pose.transform.position;
+            joints[jointName] = {
+              x: p.x,
+              y: p.y,
+              z: p.z,
+              r: pose.radius || 0.014,
+            };
+            jointCount += 1;
+          }
+
+          hands[handedness] = { jointCount, joints };
+        }
+
+        bridge.latest = {
+          frame: (bridge.latest.frame || 0) + 1,
+          time,
+          referenceSpaceType: bridge.referenceSpaceType,
+          hands,
+        };
+      }
+    })();
+
     const capabilityRows = document.getElementById('capabilities');
     const startButton = document.getElementById('start-button');
     const progressEl = document.getElementById('progress');
