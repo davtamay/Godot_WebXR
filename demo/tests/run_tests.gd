@@ -39,6 +39,7 @@ func _run_all() -> void:
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
+    _test_interactor_activate_use_events()
     _test_ray_grab_distance_clamp()
     _test_ray_motion_distance_manipulation()
     await _test_direct_hover_and_grab_integration()
@@ -315,6 +316,56 @@ func _test_interactor_hover_and_select() -> void:
     adapter.select_started.emit(XRInputAdapter.Hand.RIGHT)
     check(interactor.get_selected() == null, "select with nothing hovered is a no-op")
 
+    adapter.free()
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_interactor_activate_use_events() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := XRBaseInteractor.new()
+    root.add_child(interactor)
+    var adapter := FakeAdapter.new()
+    root.add_child(adapter)
+    interactor.call("set_input_adapter", adapter)
+    interactor.set("hand", XRInputAdapter.Hand.RIGHT)
+    interactor._set_hovered(interactable)
+
+    var events: Array[String] = []
+    interactable.activate_entered.connect(func(_i) -> void: events.append("use"))
+    interactable.activate_exited.connect(func(_i) -> void: events.append("end"))
+    interactable.activated.connect(func(_i) -> void: events.append("alias_use"))
+    interactable.deactivated.connect(func(_i) -> void: events.append("alias_end"))
+
+    adapter.activate_started.emit(XRInputAdapter.Hand.LEFT)
+    check(interactor.get_activated() == null, "activate for the other hand is ignored")
+    adapter.activate_started.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_activated() == null, "selected-only interactable does not activate from hover")
+
+    adapter.select_started.emit(XRInputAdapter.Hand.RIGHT)
+    adapter.activate_started.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_activated() == interactable, "activate via adapter uses the selected interactable")
+    check(interactable.is_activated(), "interactable reports activated")
+    check(events == (["use", "alias_use"] as Array[String]), "activate signals fire once per transition, got %s" % str(events))
+
+    adapter.select_ended.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_activated() == null, "deselect auto-releases activation")
+    check(not interactable.is_activated(), "interactable reports deactivated after deselect")
+    check("end" in events and "alias_end" in events, "deactivate signals fired, got %s" % str(events))
+
+    var hover_use := XRBaseInteractable.new()
+    hover_use.activation_mode = XRBaseInteractable.ActivationMode.HOVERED_OR_SELECTED
+    root.add_child(hover_use)
+    interactor._set_hovered(hover_use)
+    adapter.activate_started.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_activated() == hover_use, "hover-capable interactable activates without selection")
+    adapter.activate_ended.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_activated() == null, "activate end releases hover-capable use target")
+
+    hover_use.free()
     adapter.free()
     interactor.free()
     interactable.free()
@@ -894,6 +945,12 @@ func _test_screen_ray_hover_and_select() -> void:
 
     screen_ray.call("_release_select")
     check(screen_ray.get_selected() == null, "screen ray releases selection")
+
+    interactable.activation_mode = XRBaseInteractable.ActivationMode.HOVERED_OR_SELECTED
+    screen_ray.call("_try_activate")
+    check(screen_ray.get_activated() == interactable, "screen ray activates a hovered use target")
+    screen_ray.call("_release_activate")
+    check(screen_ray.get_activated() == null, "screen ray releases activation")
 
     screen_ray.free()
     interactable.free()

@@ -12,6 +12,8 @@ signal hover_entered(interactable)
 signal hover_exited(interactable)
 signal select_entered(interactable)
 signal select_exited(interactable)
+signal activate_entered(interactable)
+signal activate_exited(interactable)
 
 @export_group("Input")
 @export var input_adapter_path: NodePath
@@ -24,6 +26,7 @@ var _manager: Node
 var _adapter: Node
 var _hovered: Node
 var _selected: Node
+var _activated: Node
 
 func _notification(what: int) -> void:
     if what == NOTIFICATION_PARENTED:
@@ -43,6 +46,8 @@ func _ready() -> void:
         set_input_adapter(adapter)
 
 func _exit_tree() -> void:
+    if _activated and _manager:
+        _manager.request_deactivate(self)
     if _selected and _manager:
         _manager.request_deselect(self)
 
@@ -52,6 +57,10 @@ func set_input_adapter(adapter: Node) -> void:
             _adapter.select_started.disconnect(_on_adapter_select_started)
         if _adapter.select_ended.is_connected(_on_adapter_select_ended):
             _adapter.select_ended.disconnect(_on_adapter_select_ended)
+        if _adapter.activate_started.is_connected(_on_adapter_activate_started):
+            _adapter.activate_started.disconnect(_on_adapter_activate_started)
+        if _adapter.activate_ended.is_connected(_on_adapter_activate_ended):
+            _adapter.activate_ended.disconnect(_on_adapter_activate_ended)
 
     _adapter = adapter
     if _adapter:
@@ -59,12 +68,19 @@ func set_input_adapter(adapter: Node) -> void:
             _adapter.select_started.connect(_on_adapter_select_started)
         if not _adapter.select_ended.is_connected(_on_adapter_select_ended):
             _adapter.select_ended.connect(_on_adapter_select_ended)
+        if not _adapter.activate_started.is_connected(_on_adapter_activate_started):
+            _adapter.activate_started.connect(_on_adapter_activate_started)
+        if not _adapter.activate_ended.is_connected(_on_adapter_activate_ended):
+            _adapter.activate_ended.connect(_on_adapter_activate_ended)
 
 func get_hovered() -> Node:
     return _hovered
 
 func get_selected() -> Node:
     return _selected
+
+func get_activated() -> Node:
+    return _activated
 
 ## Global-space pose grabbed objects follow. Base: this node's transform.
 func get_attach_pose() -> Transform3D:
@@ -80,6 +96,16 @@ func _on_adapter_select_ended(event_hand: int) -> void:
         return
     _release_select()
 
+func _on_adapter_activate_started(event_hand: int) -> void:
+    if event_hand != hand:
+        return
+    _try_activate()
+
+func _on_adapter_activate_ended(event_hand: int) -> void:
+    if event_hand != hand:
+        return
+    _release_activate()
+
 func _try_select() -> void:
     if _manager == null:
         _resolve_manager()
@@ -91,6 +117,22 @@ func _release_select() -> void:
     if _selected == null or _manager == null:
         return
     _manager.request_deselect(self)
+
+func _try_activate() -> void:
+    if _manager == null:
+        _resolve_manager()
+    if _activated != null or _manager == null:
+        return
+
+    var target = _selected if _selected != null else _hovered
+    if target == null:
+        return
+    _manager.request_activate(self, target)
+
+func _release_activate() -> void:
+    if _activated == null or _manager == null:
+        return
+    _manager.request_deactivate(self)
 
 func _set_hovered(interactable) -> void:
     if interactable == _hovered:
@@ -110,3 +152,11 @@ func _notify_select_granted(interactable) -> void:
 func _notify_select_released(interactable) -> void:
     _selected = null
     select_exited.emit(interactable)
+
+func _notify_activate_granted(interactable) -> void:
+    _activated = interactable
+    activate_entered.emit(interactable)
+
+func _notify_activate_released(interactable) -> void:
+    _activated = null
+    activate_exited.emit(interactable)

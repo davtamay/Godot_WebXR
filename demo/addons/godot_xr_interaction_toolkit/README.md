@@ -34,9 +34,10 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
      Set `socket_radius` and place it at the desired attach pose. Objects with
      `XRGrabInteractable.snap_to_attach = true` snap to the socket when the
      socket auto-selects them.
-3. Feedback: connect to `hover_entered`, `hover_exited`, `select_entered`, and
-   `select_exited` on interactors or interactables. The toolkit never changes
-   your materials.
+3. Feedback: connect to `hover_entered`, `hover_exited`, `select_entered`,
+   `select_exited`, `activate_entered`, and `activate_exited` on interactors
+   or interactables. Interactables also emit XRITK-style `activated` and
+   `deactivated` aliases. The toolkit never changes your materials.
 4. Session lifecycle, including requesting the WebXR session and setting
    `viewport.use_xr`, stays in your project. See
    `demo/scripts/webxr_bootstrap.gd` for a working example that requests
@@ -68,6 +69,13 @@ the final interactor releases. Tune `throw_velocity_scale` and
 `max_throw_speed` per object. `throw_sample_frames` smooths noisy hand samples,
 and `throw_angular_velocity_scale` / `max_throw_angular_speed` control spin on
 release.
+
+Activate/use events: `XRBaseInteractable.activation_mode` controls whether an
+object can be activated only while selected, from hover, from either state, or
+not at all. `XRBaseInteractor.get_activated()` reports the current use target.
+`WebXRInputAdapter` maps WebXR `squeezestart`/`squeezeend` to activate events
+when the browser/runtime exposes them; `XRScreenRayInteractor` maps right mouse
+press/release to activate for desktop testing.
 
 `WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
 runtime `XRController3D` aim pose first. On Quest hand tracking this better

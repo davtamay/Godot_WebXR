@@ -1,7 +1,7 @@
 extends Node
 
 ## Demo-side visual feedback for one interactable. The toolkit only emits
-## hover/select signals; highlight materials are the consumer's job.
+## hover/select/activate signals; highlight materials are the consumer's job.
 
 @export var interactable_path: NodePath
 @export var mesh_path: NodePath
@@ -14,6 +14,7 @@ var _status_label: Label
 var _base_material: Material
 var _hover_material: StandardMaterial3D
 var _select_material: StandardMaterial3D
+var _activate_material: StandardMaterial3D
 
 func _ready() -> void:
     _interactable = get_node_or_null(interactable_path)
@@ -26,10 +27,15 @@ func _ready() -> void:
     _base_material = _mesh.get_active_material(0)
     _hover_material = _make_material(Color(1.0, 0.9, 0.25))
     _select_material = _make_material(Color(0.28, 1.0, 0.55))
+    _activate_material = _make_material(Color(0.18, 0.92, 1.0))
     _interactable.hover_entered.connect(_on_hover_entered)
     _interactable.hover_exited.connect(_on_hover_exited)
     _interactable.select_entered.connect(_on_select_entered)
     _interactable.select_exited.connect(_on_select_exited)
+    if _interactable.has_signal("activate_entered"):
+        _interactable.activate_entered.connect(_on_activate_entered)
+    if _interactable.has_signal("activate_exited"):
+        _interactable.activate_exited.connect(_on_activate_exited)
 
 func _make_material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -40,22 +46,38 @@ func _make_material(color: Color) -> StandardMaterial3D:
     return material
 
 func _on_hover_entered(_interactor) -> void:
-    if not _interactable.is_selected():
-        _mesh.set_surface_override_material(0, _hover_material)
+    _apply_state_material()
     _set_status("Hover: %s" % _name())
 
 func _on_hover_exited(_interactor) -> void:
-    if not _interactable.is_selected():
-        _mesh.set_surface_override_material(0, _base_material)
+    _apply_state_material()
     _set_status("Hover exit: %s" % _name())
 
 func _on_select_entered(_interactor) -> void:
-    _mesh.set_surface_override_material(0, _select_material)
+    _apply_state_material()
     _set_status("Grab: %s" % _name())
 
 func _on_select_exited(_interactor) -> void:
-    _mesh.set_surface_override_material(0, _hover_material if _interactable.is_hovered() else _base_material)
+    _apply_state_material()
     _set_status("Release: %s" % _name())
+
+func _on_activate_entered(_interactor) -> void:
+    _apply_state_material()
+    _set_status("Use: %s" % _name())
+
+func _on_activate_exited(_interactor) -> void:
+    _apply_state_material()
+    _set_status("Use end: %s" % _name())
+
+func _apply_state_material() -> void:
+    if _interactable.has_method("is_activated") and _interactable.is_activated():
+        _mesh.set_surface_override_material(0, _activate_material)
+    elif _interactable.is_selected():
+        _mesh.set_surface_override_material(0, _select_material)
+    elif _interactable.is_hovered():
+        _mesh.set_surface_override_material(0, _hover_material)
+    else:
+        _mesh.set_surface_override_material(0, _base_material)
 
 func _set_status(message: String) -> void:
     if _status_label:

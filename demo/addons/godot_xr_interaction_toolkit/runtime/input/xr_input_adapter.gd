@@ -9,6 +9,8 @@ enum SourceKind { NONE, CONTROLLER, HAND }
 
 signal select_started(hand: int)
 signal select_ended(hand: int)
+signal activate_started(hand: int)
+signal activate_ended(hand: int)
 
 ## Returns {origin: Vector3, direction: Vector3, basis: Basis} in GLOBAL space,
 ## or {} when this hand has no tracked aim pose.

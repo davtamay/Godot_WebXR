@@ -54,6 +54,14 @@ var _select_source := {
     Hand.LEFT: "",
     Hand.RIGHT: "",
 }
+var _activate_down := {
+    Hand.LEFT: false,
+    Hand.RIGHT: false,
+}
+var _activate_source := {
+    Hand.LEFT: "",
+    Hand.RIGHT: "",
+}
 var _last_free_hand_pose := {
     Hand.LEFT: {},
     Hand.RIGHT: {},
@@ -86,6 +94,8 @@ func _ready() -> void:
 
     _connect_interface_signal(&"selectstart", _on_selectstart)
     _connect_interface_signal(&"selectend", _on_selectend)
+    _connect_interface_signal(&"squeezestart", _on_squeezestart)
+    _connect_interface_signal(&"squeezeend", _on_squeezeend)
 
 func _process(_delta: float) -> void:
     _refresh_browser_hand_snapshot()
@@ -287,6 +297,20 @@ func _on_selectend(input_source_id: int) -> void:
         _emit_select_ended(hand_id, "webxr")
     else:
         _broadcast_select_ended("webxr")
+
+func _on_squeezestart(input_source_id: int) -> void:
+    var hand_id := _hand_for_input_source(input_source_id)
+    if hand_id >= 0:
+        _emit_activate_started(hand_id, "webxr")
+    else:
+        _broadcast_activate_started("webxr")
+
+func _on_squeezeend(input_source_id: int) -> void:
+    var hand_id := _hand_for_input_source(input_source_id)
+    if hand_id >= 0:
+        _emit_activate_ended(hand_id, "webxr")
+    else:
+        _broadcast_activate_ended("webxr")
 
 func _hand_for_input_source(input_source_id: int) -> int:
     if _webxr == null:
@@ -508,3 +532,27 @@ func _broadcast_select_started(source: String) -> void:
 func _broadcast_select_ended(source: String) -> void:
     _emit_select_ended(Hand.LEFT, source)
     _emit_select_ended(Hand.RIGHT, source)
+
+func _emit_activate_started(hand_id: int, source: String) -> void:
+    if not _valid_hand(hand_id) or _activate_down.get(hand_id, false):
+        return
+    _activate_down[hand_id] = true
+    _activate_source[hand_id] = source
+    activate_started.emit(hand_id)
+
+func _emit_activate_ended(hand_id: int, source: String) -> void:
+    if not _valid_hand(hand_id) or not _activate_down.get(hand_id, false):
+        return
+    if source != _activate_source.get(hand_id, ""):
+        return
+    _activate_down[hand_id] = false
+    _activate_source[hand_id] = ""
+    activate_ended.emit(hand_id)
+
+func _broadcast_activate_started(source: String) -> void:
+    _emit_activate_started(Hand.LEFT, source)
+    _emit_activate_started(Hand.RIGHT, source)
+
+func _broadcast_activate_ended(source: String) -> void:
+    _emit_activate_ended(Hand.LEFT, source)
+    _emit_activate_ended(Hand.RIGHT, source)

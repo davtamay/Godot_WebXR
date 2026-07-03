@@ -321,7 +321,7 @@ font_size = 28
 
 [node name="HoverLabel" type="Label3D" parent="SampleEnvironment"]
 transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, 2.55, 1.9, -3.05)
-text = "HOVER / SELECT TARGET"
+text = "HOVER / USE TARGET"
 font_size = 34
 
 [node name="UILabel" type="Label3D" parent="SampleEnvironment"]
@@ -438,6 +438,7 @@ surface_material_override/0 = SubResource("Material_socket")
 [node name="HoverTarget" type="Node3D" parent="."]
 transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, 2.55, 1.25, -3.05)
 script = ExtResource("12_base_interactable")
+activation_mode = 3
 
 [node name="Mesh" type="MeshInstance3D" parent="HoverTarget"]
 mesh = SubResource("BoxMesh_panel")
@@ -635,7 +636,7 @@ script = ExtResource("11_affordance")
 interactable_path = NodePath("../HoverTarget")
 mesh_path = NodePath("../HoverTarget/Mesh")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
-display_name = "Hover Select Panel"
+display_name = "Hover Use Panel"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 
@@ -663,7 +664,7 @@ text = "Godot XR Interaction Toolkit Sample"
 [node name="StatusLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Choose VR or AR, then use rays to hover and grab sample objects."
+text = "Choose VR or AR, then use rays to hover, grab, and use sample objects."
 autowrap_mode = 3
 
 [node name="SessionButtons" type="HBoxContainer" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]

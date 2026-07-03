@@ -11,6 +11,7 @@ static var _last_manager: Node
 
 var _collider_map := {} # collider instance_id (int) -> interactable
 var _selections := {} # interactor -> interactable
+var _activations := {} # interactor -> interactable
 
 static func find(from: Node):
     var fallback := _get_valid_last_manager()
@@ -56,6 +57,12 @@ func unregister_interactable(interactable) -> void:
     for interactor in _selections.keys():
         if _selections[interactor] == interactable:
             selecting_interactors.append(interactor)
+    var activating_interactors := []
+    for interactor in _activations.keys():
+        if _activations[interactor] == interactable:
+            activating_interactors.append(interactor)
+    for interactor in activating_interactors:
+        request_deactivate(interactor)
     for interactor in selecting_interactors:
         request_deselect(interactor)
 
@@ -92,7 +99,32 @@ func request_deselect(interactor) -> bool:
         return false
 
     var interactable = _selections[interactor]
+    if _activations.get(interactor) == interactable:
+        request_deactivate(interactor)
     _selections.erase(interactor)
     interactable._notify_select_exited(interactor)
     interactor._notify_select_released(interactable)
+    return true
+
+func request_activate(interactor, interactable) -> bool:
+    if interactor == null or interactable == null:
+        return false
+    if _activations.has(interactor):
+        return false
+    if not interactable.can_activate(interactor):
+        return false
+
+    _activations[interactor] = interactable
+    interactable._notify_activate_entered(interactor)
+    interactor._notify_activate_granted(interactable)
+    return true
+
+func request_deactivate(interactor) -> bool:
+    if not _activations.has(interactor):
+        return false
+
+    var interactable = _activations[interactor]
+    _activations.erase(interactor)
+    interactable._notify_activate_exited(interactor)
+    interactor._notify_activate_released(interactable)
     return true

@@ -13,6 +13,7 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 @export var collide_with_areas := true
 @export var min_grab_distance := 0.25
 @export var ignore_ui_canvas_interactables := true
+@export var activate_with_right_mouse_button := true
 
 var _camera: Camera3D
 var _screen_position := Vector2.ZERO
@@ -49,15 +50,21 @@ func _unhandled_input(event: InputEvent) -> void:
         update_from_screen(_screen_position)
     elif event is InputEventMouseButton:
         var button := event as InputEventMouseButton
-        if button.button_index != MOUSE_BUTTON_LEFT:
+        if button.button_index != MOUSE_BUTTON_LEFT and not (activate_with_right_mouse_button and button.button_index == MOUSE_BUTTON_RIGHT):
             return
         _screen_position = button.position
         _has_screen_position = true
         update_from_screen(_screen_position)
-        if button.pressed:
-            _try_select()
+        if button.button_index == MOUSE_BUTTON_RIGHT:
+            if button.pressed:
+                _try_activate()
+            else:
+                _release_activate()
         else:
-            _release_select()
+            if button.pressed:
+                _try_select()
+            else:
+                _release_select()
         _mark_handled_if_over_interactable()
     elif event is InputEventScreenTouch:
         var touch := event as InputEventScreenTouch
