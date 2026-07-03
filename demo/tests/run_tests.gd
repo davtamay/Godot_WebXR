@@ -10,6 +10,7 @@ const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolki
 const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd")
 const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
+const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 
 var _checks := 0
 var _failures := 0
@@ -23,6 +24,8 @@ func _run_all() -> void:
     _test_hand_ray_geometry()
     _test_manager_registry_and_arbitration()
     _test_interactor_hover_and_select()
+    _test_ray_grab_distance_clamp()
+    await _test_ray_hover_and_grab_integration()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -165,3 +168,82 @@ class FakeAdapter extends XRInputAdapter:
 
     func get_aim_pose(_hand: int) -> Dictionary:
         return pose
+
+func _test_ray_grab_distance_clamp() -> void:
+    var ray := XRRayInteractor.new()
+    var interactable := XRBaseInteractable.new()
+
+    ray._hover_distance = 2.0
+    ray._notify_select_granted(interactable)
+    check(is_equal_approx(ray._grab_distance, 2.0), "grab distance = hover distance in range")
+    ray._notify_select_released(interactable)
+
+    ray._hover_distance = 0.05
+    ray._notify_select_granted(interactable)
+    check(is_equal_approx(ray._grab_distance, ray.min_grab_distance), "grab distance clamps up to min_grab_distance")
+    ray._notify_select_released(interactable)
+
+    ray._hover_distance = 100.0
+    ray._notify_select_granted(interactable)
+    check(is_equal_approx(ray._grab_distance, ray.max_distance), "grab distance clamps down to max_distance")
+    ray._notify_select_released(interactable)
+
+    interactable.free()
+    ray.free()
+
+func _test_ray_hover_and_grab_integration() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var interactable := XRBaseInteractable.new()
+    var body := StaticBody3D.new()
+    var shape := CollisionShape3D.new()
+    shape.shape = BoxShape3D.new()
+    body.add_child(shape)
+    interactable.add_child(body)
+    root.add_child(interactable)
+    interactable.position = Vector3(0, 0, -2)
+
+    var adapter := FakeAdapter.new()
+    adapter.pose = {"origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    root.add_child(adapter)
+
+    var ray := XRRayInteractor.new()
+    root.add_child(ray)
+    ray.call("set_input_adapter", adapter)
+    ray.set("hand", XRInputAdapter.Hand.LEFT)
+
+    await physics_frame
+    await physics_frame
+
+    check(ray.get_hovered() == interactable, "ray hovers the box straight ahead")
+    var state: Dictionary = ray.get_ray_state()
+    check(state.get("valid", false), "ray state is valid with a tracked pose")
+    check(state.get("hit", false), "ray state reports a hit")
+    check((state["end"] as Vector3).is_equal_approx(Vector3(0, 0, -1.5)), "hit point is on the near face")
+
+    adapter.select_started.emit(XRInputAdapter.Hand.LEFT)
+    check(ray.get_selected() == interactable, "select grabs the hovered box")
+    check(is_equal_approx(ray._grab_distance, 1.5), "grab distance captured from hover distance")
+    var attach := ray.get_attach_pose()
+    check(attach.origin.is_equal_approx(Vector3(0, 0, -1.5)), "attach pose sits at grab distance on the ray")
+
+    adapter.pose = {"origin": Vector3(0, 0.5, 0), "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    await physics_frame
+    await physics_frame
+    check(ray.get_attach_pose().origin.is_equal_approx(Vector3(0, 0.5, -1.5)), "attach pose follows the moving ray at fixed grab distance")
+
+    adapter.pose = {}
+    await physics_frame
+    check(ray.get_selected() == interactable, "selection survives pose loss")
+    check(ray.get_attach_pose().origin.is_equal_approx(Vector3(0, 0.5, -1.5)), "attach pose frozen during pose loss")
+    check(not ray.get_ray_state().get("valid", true), "ray state invalid during pose loss")
+
+    adapter.pose = {"origin": Vector3(0, 0.5, 0), "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    adapter.select_ended.emit(XRInputAdapter.Hand.LEFT)
+    check(ray.get_selected() == null, "release clears the selection")
+
+    ray.free()
+    adapter.free()
+    interactable.free()
+    manager.free()

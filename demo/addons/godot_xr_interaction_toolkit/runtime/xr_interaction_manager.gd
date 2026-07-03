@@ -13,13 +13,23 @@ var _collider_map := {} # collider instance_id (int) -> interactable
 var _selections := {} # interactor -> interactable
 
 static func find(from: Node):
+    var fallback := _get_valid_last_manager()
     if from == null or not from.is_inside_tree():
-        return _last_manager
+        return fallback
     var manager := from.get_tree().get_first_node_in_group(GROUP_NAME)
-    return manager if manager else _last_manager
+    return manager if manager else fallback
+
+static func _get_valid_last_manager() -> Node:
+    if _last_manager != null and not is_instance_valid(_last_manager):
+        _last_manager = null
+    return _last_manager
 
 func _init() -> void:
     _last_manager = self
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_PREDELETE and _last_manager == self:
+        _last_manager = null
 
 func _enter_tree() -> void:
     add_to_group(GROUP_NAME)
