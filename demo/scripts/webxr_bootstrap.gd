@@ -133,9 +133,9 @@ func _start_xr_session(session_mode: String) -> void:
 
     _requested_session_mode = session_mode
     _webxr.session_mode = session_mode
-    _webxr.requested_reference_space_types = "local"
-    _webxr.required_features = "layers, hand-tracking" if require_hand_tracking else "layers"
-    _webxr.optional_features = "local-floor, bounded-floor" if require_hand_tracking else "local-floor, bounded-floor, hand-tracking"
+    _webxr.requested_reference_space_types = _reference_space_types_for(session_mode)
+    _webxr.required_features = _required_features_for(session_mode)
+    _webxr.optional_features = _optional_features_for(session_mode)
 
     _set_status("Requesting %s session..." % _session_label(session_mode))
     if not _webxr.initialize():
@@ -212,6 +212,25 @@ func _support_text(checked: bool, supported: bool) -> String:
 
 func _session_label(session_mode: String) -> String:
     return "AR" if session_mode == "immersive-ar" else "VR"
+
+func _reference_space_types_for(session_mode: String) -> String:
+    if session_mode == "immersive-ar":
+        return "local-floor, local"
+    return "bounded-floor, local-floor, local"
+
+func _required_features_for(_session_mode: String) -> String:
+    var features: Array[String] = ["layers"]
+    if require_hand_tracking:
+        features.append("hand-tracking")
+    return ", ".join(features)
+
+func _optional_features_for(session_mode: String) -> String:
+    var features: Array[String] = ["local-floor"]
+    if session_mode == "immersive-vr":
+        features.append("bounded-floor")
+    if not require_hand_tracking:
+        features.append("hand-tracking")
+    return ", ".join(features)
 
 func _apply_ar_scene_mode(enabled: bool) -> void:
     get_viewport().transparent_bg = enabled if enabled else _base_transparent_bg
