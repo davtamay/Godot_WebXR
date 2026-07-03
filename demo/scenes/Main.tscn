@@ -1,10 +1,16 @@
-[gd_scene load_steps=15 format=3]
+[gd_scene load_steps=20 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
 [ext_resource type="Script" path="res://scripts/browser_capabilities.gd" id="3_caps"]
 [ext_resource type="Script" path="res://scripts/webxr_hand_visualizer.gd" id="4_hands"]
-[ext_resource type="Script" path="res://scripts/xr_ray_interactor.gd" id="5_ray"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd" id="5_manager"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd" id="6_adapter"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd" id="7_ray"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd" id="8_grab"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd" id="9_line"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd" id="10_reticle"]
+[ext_resource type="Script" path="res://scripts/xr_demo_affordance.gd" id="11_affordance"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -50,6 +56,15 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_energy = 1.5
 shadow_enabled = true
 
+[node name="XRInteractionManager" type="Node" parent="."]
+script = ExtResource("5_manager")
+
+[node name="WebXRInputAdapter" type="Node" parent="."]
+script = ExtResource("6_adapter")
+xr_origin_path = NodePath("../XROrigin3D")
+left_controller_path = NodePath("../XROrigin3D/LeftController")
+right_controller_path = NodePath("../XROrigin3D/RightController")
+
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
@@ -71,19 +86,39 @@ show_when_tracked = true
 script = ExtResource("4_hands")
 status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 
-[node name="RayInteractor" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("5_ray")
-left_controller_path = NodePath("../LeftController")
-right_controller_path = NodePath("../RightController")
-status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+[node name="LeftRayInteractor" type="Node3D" parent="XROrigin3D"]
+script = ExtResource("7_ray")
+input_adapter_path = NodePath("../../WebXRInputAdapter")
+hand = 0
+
+[node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/LeftRayInteractor"]
+script = ExtResource("9_line")
+color = Color(0.2, 0.75, 1, 0.85)
+
+[node name="Reticle" type="MeshInstance3D" parent="XROrigin3D/LeftRayInteractor"]
+script = ExtResource("10_reticle")
+
+[node name="RightRayInteractor" type="Node3D" parent="XROrigin3D"]
+script = ExtResource("7_ray")
+input_adapter_path = NodePath("../../WebXRInputAdapter")
+hand = 1
+
+[node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
+script = ExtResource("9_line")
+color = Color(1, 0.58, 0.2, 0.85)
+
+[node name="Reticle" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
+script = ExtResource("10_reticle")
 
 [node name="Floor" type="MeshInstance3D" parent="."]
 mesh = SubResource("PlaneMesh_floor")
 surface_material_override/0 = SubResource("Material_floor")
 
-[node name="InspectObject" type="MeshInstance3D" parent="." groups=["xr_interactable"]]
-unique_name_in_owner = true
+[node name="InspectObject" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1.8)
+script = ExtResource("8_grab")
+
+[node name="Mesh" type="MeshInstance3D" parent="InspectObject"]
 mesh = SubResource("BoxMesh_object")
 surface_material_override/0 = SubResource("Material_object")
 
@@ -101,7 +136,13 @@ surface_material_override/0 = SubResource("Material_marker")
 script = ExtResource("2_webxr")
 enter_xr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/EnterXRButton")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
-inspect_object_path = NodePath("../InspectObject")
+inspect_object_path = NodePath("../InspectObject/Mesh")
+
+[node name="DemoAffordance" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../InspectObject")
+mesh_path = NodePath("../InspectObject/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 
 [node name="CanvasLayer" type="CanvasLayer" parent="."]
 

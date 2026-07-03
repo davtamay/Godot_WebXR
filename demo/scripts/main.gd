@@ -3,7 +3,7 @@ extends Node3D
 @onready var status_label: Label = %StatusLabel
 @onready var caps_label: Label = %CapsLabel
 @onready var fps_label: Label = %FpsLabel
-@onready var inspect_object: MeshInstance3D = %InspectObject
+@onready var inspect_object: MeshInstance3D = $InspectObject/Mesh
 
 var _rotation_speed := 0.6
 
