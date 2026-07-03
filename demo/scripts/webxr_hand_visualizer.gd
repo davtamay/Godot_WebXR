@@ -641,5 +641,20 @@ func _set_status(message: String) -> void:
     if _status_label:
         _status_label.text = message
     if _world_status_label:
-        _world_status_label.text = message
+        _world_status_label.text = _format_world_status(message)
     print(message)
+
+func _format_world_status(message: String) -> String:
+    var prefix := "Hand tracking: "
+    if not message.begins_with(prefix):
+        return message
+
+    var body := message.trim_suffix(".").substr(prefix.length())
+    var parts := body.split(" | ", false)
+    if parts.size() <= 1:
+        return message
+
+    var lines: Array[String] = ["Hand tracking: %s" % parts[0]]
+    for index in range(1, parts.size()):
+        lines.append(parts[index])
+    return "\n".join(lines)

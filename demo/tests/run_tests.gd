@@ -182,6 +182,8 @@ func _test_hand_visualizer_fallback_shape() -> void:
     check(left_thumb.x < 0.0, "left fallback thumb is mirrored to negative X")
     check(right_thumb.x > 0.0, "right fallback thumb is mirrored to positive X")
     check(right_index.z < -0.1, "fallback fingers extend forward from the hand pose")
+    var wrapped_status: String = visualizer.call("_format_world_status", "Hand tracking: Left, Right | L 25 browser joints frame=10 | R 25 browser joints frame=10.")
+    check(wrapped_status.split("\n").size() == 3, "world hand tracking diagnostics wrap into multiple lines")
     visualizer.free()
 
 func _test_manager_registry_and_arbitration() -> void:
