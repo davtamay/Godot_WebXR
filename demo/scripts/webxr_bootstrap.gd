@@ -1,36 +1,68 @@
 extends Node3D
 
 ## Minimal WebXR startup flow.
-## Attach to a Node3D in the demo scene and wire a Button plus optional status Label.
+## Attach to a Node3D in the demo scene and wire VR/AR Buttons plus optional status Label.
 ## This intentionally uses Godot's WebXRInterface, not custom WebGPU rendering.
 
+## Legacy single-button path. If enter_vr_button_path is empty, this is used as the VR button.
 @export var enter_xr_button_path: NodePath
+@export var enter_vr_button_path: NodePath
+@export var enter_ar_button_path: NodePath
 @export var status_label_path: NodePath
 @export var inspect_object_path: NodePath
+@export var world_environment_path: NodePath
 @export var enable_legacy_select_visuals := false
 @export var require_hand_tracking := true
+@export var ar_hide_group := "ar_passthrough_hidden"
 
 var _webxr: XRInterface
 var _vr_supported := false
-var _enter_button: Button
+var _ar_supported := false
+var _vr_support_checked := false
+var _ar_support_checked := false
+var _vr_button: Button
+var _ar_button: Button
 var _status_label: Label
 var _inspect_object: MeshInstance3D
+var _world_environment: WorldEnvironment
 var _select_count := 0
 var _base_scale := Vector3.ONE
 var _base_material: Material
 var _highlight_material: StandardMaterial3D
 var _last_session_failed := false
+var _requested_session_mode := ""
+var _active_session_mode := ""
+var _base_transparent_bg := false
+var _base_clear_color := Color.BLACK
+var _base_environment_background_mode := -1
+var _base_environment_background_color := Color.BLACK
+var _ar_hidden_node_visibility := {}
 
 func _ready() -> void:
-    _enter_button = get_node_or_null(enter_xr_button_path) as Button
+    _vr_button = get_node_or_null(enter_vr_button_path) as Button
+    if _vr_button == null:
+        _vr_button = get_node_or_null(enter_xr_button_path) as Button
+    _ar_button = get_node_or_null(enter_ar_button_path) as Button
     _status_label = get_node_or_null(status_label_path) as Label
     _inspect_object = get_node_or_null(inspect_object_path) as MeshInstance3D
+    _world_environment = get_node_or_null(world_environment_path) as WorldEnvironment
+    _base_transparent_bg = get_viewport().transparent_bg
+    _base_clear_color = RenderingServer.get_default_clear_color()
+    if _world_environment and _world_environment.environment:
+        _base_environment_background_mode = _world_environment.environment.background_mode
+        _base_environment_background_color = _world_environment.environment.background_color
 
-    if _enter_button:
-        _enter_button.pressed.connect(_on_enter_xr_pressed)
-        _enter_button.disabled = true
+    if _vr_button:
+        _vr_button.pressed.connect(_on_enter_vr_pressed)
+        _vr_button.disabled = true
     else:
-        _set_status("Enter XR button path is not assigned or does not point to a Button.")
+        _set_status("Enter VR button path is not assigned or does not point to a Button.")
+
+    if _ar_button:
+        _ar_button.pressed.connect(_on_enter_ar_pressed)
+        _ar_button.disabled = true
+    else:
+        _set_status("Enter AR button path is not assigned or does not point to a Button.")
 
     if _inspect_object:
         _base_scale = _inspect_object.scale
@@ -60,44 +92,70 @@ func _ready() -> void:
     _connect_webxr_input_signal("selectstart", _on_webxr_select_start)
     _connect_webxr_input_signal("selectend", _on_webxr_select_end)
 
-    _set_status("Checking immersive-vr support…")
+    _set_status("Checking WebXR VR/AR support...")
     _webxr.is_session_supported("immersive-vr")
+    _webxr.is_session_supported("immersive-ar")
 
 func _on_session_supported(session_mode: String, supported: bool) -> void:
-    if session_mode != "immersive-vr":
-        return
+    match session_mode:
+        "immersive-vr":
+            _vr_supported = supported
+            _vr_support_checked = true
+            if _vr_button:
+                _vr_button.disabled = not supported
+        "immersive-ar":
+            _ar_supported = supported
+            _ar_support_checked = true
+            if _ar_button:
+                _ar_button.disabled = not supported
+        _:
+            return
 
-    _vr_supported = supported
-    if _enter_button:
-        _enter_button.disabled = not supported
+    _set_status("WebXR support: VR %s, AR %s." % [_support_text(_vr_support_checked, _vr_supported), _support_text(_ar_support_checked, _ar_supported)])
 
-    _set_status("immersive-vr supported." if supported else "immersive-vr not supported in this browser/device.")
+func _on_enter_vr_pressed() -> void:
+    _start_xr_session("immersive-vr")
 
-func _on_enter_xr_pressed() -> void:
+func _on_enter_ar_pressed() -> void:
+    _start_xr_session("immersive-ar")
+
+func _start_xr_session(session_mode: String) -> void:
     if not _webxr:
         _set_status("WebXR interface missing.")
         return
 
-    if not _vr_supported:
+    if session_mode == "immersive-vr" and not _vr_supported:
         _set_status("immersive-vr not supported.")
         return
+    if session_mode == "immersive-ar" and not _ar_supported:
+        _set_status("immersive-ar not supported.")
+        return
 
-    _webxr.session_mode = "immersive-vr"
+    _requested_session_mode = session_mode
+    _webxr.session_mode = session_mode
     _webxr.requested_reference_space_types = "local"
     _webxr.required_features = "layers, hand-tracking" if require_hand_tracking else "layers"
     _webxr.optional_features = "local-floor, bounded-floor" if require_hand_tracking else "local-floor, bounded-floor, hand-tracking"
 
-    _set_status("Requesting WebXR session…")
+    _set_status("Requesting %s session..." % _session_label(session_mode))
     if not _webxr.initialize():
+        _requested_session_mode = ""
         _set_status("WebXR initialize() returned false. Session was not requested.")
 
 func _on_session_started() -> void:
     _last_session_failed = false
+    _active_session_mode = _requested_session_mode
+    if _active_session_mode.is_empty():
+        _active_session_mode = _webxr.session_mode
+    _apply_ar_scene_mode(_active_session_mode == "immersive-ar")
     get_viewport().use_xr = true
-    _set_status("WebXR session started. Reference space: %s. Enabled features: %s." % [_webxr.reference_space_type, _webxr.enabled_features])
+    _set_status("%s session started. Reference space: %s. Enabled features: %s." % [_session_label(_active_session_mode), _webxr.reference_space_type, _webxr.enabled_features])
 
 func _on_session_ended() -> void:
     get_viewport().use_xr = false
+    _apply_ar_scene_mode(false)
+    _requested_session_mode = ""
+    _active_session_mode = ""
     if _last_session_failed:
         return
     _set_status("WebXR session ended.")
@@ -105,6 +163,9 @@ func _on_session_ended() -> void:
 func _on_session_failed(message: String) -> void:
     _last_session_failed = true
     get_viewport().use_xr = false
+    _apply_ar_scene_mode(false)
+    _requested_session_mode = ""
+    _active_session_mode = ""
     _set_status("WEBXR FAILED: " + message)
     _show_browser_failure("WEBXR FAILED: " + message)
 
@@ -143,6 +204,41 @@ func _set_status(message: String) -> void:
     if _status_label:
         _status_label.text = message
     print(message)
+
+func _support_text(checked: bool, supported: bool) -> String:
+    if not checked:
+        return "checking"
+    return "yes" if supported else "no"
+
+func _session_label(session_mode: String) -> String:
+    return "AR" if session_mode == "immersive-ar" else "VR"
+
+func _apply_ar_scene_mode(enabled: bool) -> void:
+    get_viewport().transparent_bg = enabled if enabled else _base_transparent_bg
+    RenderingServer.set_default_clear_color(Color(0, 0, 0, 0) if enabled else _base_clear_color)
+
+    if _world_environment and _world_environment.environment:
+        if enabled:
+            _world_environment.environment.background_mode = Environment.BG_CLEAR_COLOR
+            _world_environment.environment.background_color = Color(0, 0, 0, 0)
+        elif _base_environment_background_mode >= 0:
+            _world_environment.environment.background_mode = _base_environment_background_mode
+            _world_environment.environment.background_color = _base_environment_background_color
+
+    for node in get_tree().get_nodes_in_group(ar_hide_group):
+        if not (node is Node3D):
+            continue
+
+        var node_3d := node as Node3D
+        if enabled:
+            if not _ar_hidden_node_visibility.has(node_3d):
+                _ar_hidden_node_visibility[node_3d] = node_3d.visible
+            node_3d.visible = false
+        elif _ar_hidden_node_visibility.has(node_3d):
+            node_3d.visible = bool(_ar_hidden_node_visibility[node_3d])
+
+    if not enabled:
+        _ar_hidden_node_visibility.clear()
 
 func _show_browser_failure(message: String) -> void:
     if not OS.has_feature("web") or not Engine.has_singleton("JavaScriptBridge"):

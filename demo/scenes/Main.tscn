@@ -215,7 +215,7 @@ script = ExtResource("10_reticle")
 
 [node name="SampleEnvironment" type="Node3D" parent="."]
 
-[node name="Floor" type="MeshInstance3D" parent="SampleEnvironment"]
+[node name="Floor" type="MeshInstance3D" parent="SampleEnvironment" groups=["ar_passthrough_hidden"]]
 mesh = SubResource("PlaneMesh_floor")
 surface_material_override/0 = SubResource("Material_floor")
 
@@ -225,7 +225,7 @@ surface_material_override/0 = SubResource("Material_floor")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.06, 0)
 shape = SubResource("BoxShape_floor")
 
-[node name="BackWall" type="MeshInstance3D" parent="SampleEnvironment"]
+[node name="BackWall" type="MeshInstance3D" parent="SampleEnvironment" groups=["ar_passthrough_hidden"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, -3.25)
 mesh = SubResource("BoxMesh_wall")
 surface_material_override/0 = SubResource("Material_wall")
@@ -506,9 +506,11 @@ surface_material_override/0 = SubResource("Material_marker")
 
 [node name="WebXRBootstrap" type="Node3D" parent="."]
 script = ExtResource("2_webxr")
-enter_xr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/EnterXRButton")
+enter_vr_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/SessionButtons/EnterVRButton")
+enter_ar_button_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/SessionButtons/EnterARButton")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 inspect_object_path = NodePath("../InspectObject/Mesh")
+world_environment_path = NodePath("../WorldEnvironment")
 
 [node name="DemoAffordanceInstant" type="Node" parent="."]
 script = ExtResource("11_affordance")
@@ -578,12 +580,22 @@ text = "Godot XR Interaction Toolkit Sample"
 [node name="StatusLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Enter WebXR, then use rays to hover and grab sample objects."
+text = "Choose VR or AR, then use rays to hover and grab sample objects."
 autowrap_mode = 3
 
-[node name="EnterXRButton" type="Button" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
+[node name="SessionButtons" type="HBoxContainer" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 layout_mode = 2
-text = "Enter WebXR"
+theme_override_constants/separation = 8
+
+[node name="EnterVRButton" type="Button" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer/SessionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Enter VR"
+
+[node name="EnterARButton" type="Button" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer/SessionButtons"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Enter AR"
 
 [node name="FpsLabel" type="Label" parent="CanvasLayer/Panel/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
