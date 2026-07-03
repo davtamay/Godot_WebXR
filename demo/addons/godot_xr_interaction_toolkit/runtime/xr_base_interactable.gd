@@ -53,18 +53,24 @@ func _exit_tree() -> void:
     _unregister_from_manager()
 
 func _unregister_from_manager() -> void:
-    if _registered_manager:
+    if _registered_manager and is_instance_valid(_registered_manager):
         _registered_manager.unregister_interactable(self)
-        _registered_manager = null
+    _registered_manager = null
 
 func _register_with_manager(force_refresh := false) -> void:
     var manager = XRInteractionManager.find(self)
     if manager == null:
         push_warning("%s: no XRInteractionManager in the scene tree." % name)
         return
-    if manager == _registered_manager and not force_refresh:
+    if manager == _registered_manager:
+        # Same manager: a refresh only re-syncs colliders. It must NOT go
+        # through unregister_interactable, which tears down active
+        # selections (adding a child in a select_entered handler would
+        # otherwise cancel the grab it is reacting to).
+        if force_refresh:
+            manager.refresh_interactable_colliders(self)
         return
-    if _registered_manager:
+    if _registered_manager and is_instance_valid(_registered_manager):
         _registered_manager.unregister_interactable(self)
     _registered_manager = manager
     _registered_manager.register_interactable(self)

@@ -42,6 +42,11 @@ func _run_all() -> void:
     _test_interactor_activate_use_events()
     _test_ray_grab_distance_clamp()
     _test_ray_motion_distance_manipulation()
+    _test_motion_distance_accumulates_slow_motion()
+    _test_collider_refresh_preserves_selection()
+    _test_reentrant_deselect_during_select_entered()
+    _test_interactor_exit_tree_clears_hover()
+    _test_stale_manager_recovery()
     await _test_direct_hover_and_grab_integration()
     await _test_ray_hover_and_grab_integration()
     _test_ray_suppressed_by_direct_interactor()
@@ -399,7 +404,7 @@ func _test_ray_grab_distance_clamp() -> void:
 
     ray._hover_distance = 0.05
     ray._notify_select_granted(interactable)
-    check(is_equal_approx(ray._grab_distance, ray.min_grab_distance), "grab distance clamps up to min_grab_distance")
+    check(is_equal_approx(ray._grab_distance, 0.05), "close grab keeps the true hover distance (no pop to min_grab_distance)")
     ray._notify_select_released(interactable)
 
     ray._hover_distance = 100.0
@@ -441,6 +446,126 @@ func _test_ray_motion_distance_manipulation() -> void:
     ray.free()
     adapter.free()
     manager.free()
+
+func _test_motion_distance_accumulates_slow_motion() -> void:
+    var ray := XRRayInteractor.new()
+    root.add_child(ray)
+    var interactable := XRBaseInteractable.new()
+
+    ray._hover_distance = 3.0
+    ray._notify_select_granted(interactable)
+    ray._last_ray_origin = Vector3.ZERO
+    ray._last_ray_direction = Vector3(0, 0, -1)
+    ray._has_last_ray_pose = true
+
+    # 2 mm-per-frame pull: each step is below the 6 mm deadzone and must
+    # accumulate instead of being discarded.
+    var origin := Vector3.ZERO
+    for i in range(10):
+        origin += Vector3(0, 0, 0.002)
+        ray._apply_motion_distance_manipulation(origin, Vector3(0, 0, -1), 1.0 / 60.0)
+        ray._last_ray_origin = origin
+    check(ray._grab_distance < 3.0 - 0.01, "slow per-frame hand motion accumulates into a pull, got %.4f" % ray._grab_distance)
+
+    ray._notify_select_released(interactable)
+    interactable.free()
+    ray.free()
+
+func _test_collider_refresh_preserves_selection() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    var body := StaticBody3D.new()
+    interactable.add_child(body)
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    check(manager.request_select(interactor, interactable), "collider refresh test: select granted")
+    var extra_body := StaticBody3D.new()
+    interactable.add_child(extra_body)
+    check(interactor.get_selected() == interactable, "adding a child collider mid-grab keeps the selection")
+    check(interactable.is_selected(), "interactable stays selected across a collider refresh")
+    check(manager.get_interactable_for_collider(extra_body) == interactable, "collider added mid-grab resolves to the interactable")
+    manager.request_deselect(interactor)
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_reentrant_deselect_during_select_entered() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    interactable.select_entered.connect(func(i) -> void: manager.request_deselect(i))
+    check(not manager.request_select(interactor, interactable), "reentrant deselect makes request_select report failure")
+    check(interactor.get_selected() == null, "interactor not left selected after a reentrant deselect")
+    check(not interactable.is_selected(), "interactable not left selected after a reentrant deselect")
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_interactor_exit_tree_clears_hover() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    var exits: Array = []
+    interactable.hover_exited.connect(func(i) -> void: exits.append(i))
+    interactor._set_hovered(interactable)
+    check(interactable.is_hovered(), "exit-tree test: hovered before removal")
+    root.remove_child(interactor)
+    check(not interactable.is_hovered(), "interactor leaving the tree clears hover on the interactable")
+    check(exits.size() == 1 and exits[0] == interactor, "hover_exited reaches the interactable when the interactor exits")
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_stale_manager_recovery() -> void:
+    # Scenario A: manager freed and rebuilt BEFORE the first select.
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+
+    root.remove_child(manager)
+    manager.free()
+    var manager2 := XRInteractionManager.new()
+    root.add_child(manager2)
+
+    interactor._set_hovered(interactable)
+    interactor._try_select()
+    check(interactor.get_selected() == interactable, "select recovers after the manager was freed and rebuilt")
+    check(manager2._selections.get(interactor) == interactable, "the rebuilt manager owns the recovered selection")
+
+    # Scenario B: manager dies MID-GRAB; release must not wedge the interactor.
+    root.remove_child(manager2)
+    manager2.free()
+    var manager3 := XRInteractionManager.new()
+    root.add_child(manager3)
+
+    interactor._release_select()
+    check(interactor.get_selected() == null, "release with a dead manager cleans up locally")
+    check(not interactable.is_selected(), "interactable is released despite the dead manager")
+    interactor._set_hovered(interactable)
+    interactor._try_select()
+    check(interactor.get_selected() == interactable, "interactor can select again after stale-manager recovery")
+    manager3.request_deselect(interactor)
+
+    interactor.free()
+    interactable.free()
+    manager3.free()
 
 func _test_direct_hover_and_grab_integration() -> void:
     var manager := XRInteractionManager.new()

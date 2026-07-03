@@ -32,6 +32,7 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 var _ray_state := {"valid": false}
 var _grab_distance := 0.0
 var _hover_distance := 0.0
+var _pending_distance_delta := 0.0
 var _attach_pose := Transform3D.IDENTITY
 var _suppress_interactor: Node
 var _last_ray_origin := Vector3.ZERO
@@ -115,30 +116,44 @@ func _intersect(origin: Vector3, direction: Vector3) -> Dictionary:
     return get_world_3d().direct_space_state.intersect_ray(query)
 
 func _notify_select_granted(interactable) -> void:
-    _grab_distance = clampf(_hover_distance, min_grab_distance, max_distance)
+    # Grabbing closer than min_grab_distance keeps the true distance so the
+    # object does not pop forward; min_grab_distance only floors pull-ins.
+    _grab_distance = minf(_hover_distance, max_distance)
+    _pending_distance_delta = 0.0
     _seed_last_ray_pose_from_state()
     super(interactable)
 
 func _notify_select_released(interactable) -> void:
     super(interactable)
+    _pending_distance_delta = 0.0
     _seed_last_ray_pose_from_state()
 
-func _apply_motion_distance_manipulation(origin: Vector3, direction: Vector3, delta: float) -> void:
+func _apply_motion_distance_manipulation(origin: Vector3, _direction: Vector3, delta: float) -> void:
     if not enable_motion_distance_manipulation or not _has_last_ray_pose:
         return
 
+    # The deadzone gates ACCUMULATED motion, not per-frame deltas: slow hand
+    # movement adds up instead of being discarded, and the threshold is not
+    # frame-rate dependent.
     var movement := origin - _last_ray_origin
-    var distance_delta := movement.dot(_last_ray_direction.normalized()) * distance_motion_scale
-    if absf(distance_delta) < distance_motion_deadzone:
+    _pending_distance_delta += movement.dot(_last_ray_direction.normalized()) * distance_motion_scale
+    if _pending_distance_delta > 0.0 and not allow_push_distance_manipulation:
+        _pending_distance_delta = 0.0
         return
-    if distance_delta > 0.0 and not allow_push_distance_manipulation:
+    if absf(_pending_distance_delta) < distance_motion_deadzone:
         return
 
+    var step := _pending_distance_delta
     if delta > 0.0 and max_distance_change_per_second > 0.0:
         var max_step := max_distance_change_per_second * delta
-        distance_delta = clampf(distance_delta, -max_step, max_step)
+        step = clampf(step, -max_step, max_step)
 
-    _grab_distance = clampf(_grab_distance + distance_delta, min_grab_distance, max_distance)
+    var floor_distance := minf(min_grab_distance, _grab_distance)
+    var previous := _grab_distance
+    _grab_distance = clampf(_grab_distance + step, floor_distance, max_distance)
+    _pending_distance_delta -= _grab_distance - previous
+    if is_equal_approx(_grab_distance, floor_distance) or is_equal_approx(_grab_distance, max_distance):
+        _pending_distance_delta = 0.0
 
 func _seed_last_ray_pose_from_state() -> void:
     if not _ray_state.get("valid", false):

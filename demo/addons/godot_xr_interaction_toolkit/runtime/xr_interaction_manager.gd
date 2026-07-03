@@ -66,6 +66,16 @@ func unregister_interactable(interactable) -> void:
     for interactor in selecting_interactors:
         request_deselect(interactor)
 
+## Re-syncs an interactable's collider registrations without touching its
+## selections/activations (unlike unregister_interactable).
+func refresh_interactable_colliders(interactable) -> void:
+    if interactable == null:
+        return
+    for id in _collider_map.keys():
+        if _collider_map[id] == interactable:
+            _collider_map.erase(id)
+    register_interactable(interactable)
+
 func get_interactable_for_collider(collider: Object):
     if collider == null:
         return null
@@ -94,6 +104,9 @@ func request_select(interactor, interactable) -> bool:
 
     _selections[interactor] = interactable
     interactable._notify_select_entered(interactor)
+    if _selections.get(interactor) != interactable:
+        # A select_entered handler deselected synchronously; do not grant.
+        return false
     interactor._notify_select_granted(interactable)
     return true
 
@@ -119,6 +132,9 @@ func request_activate(interactor, interactable) -> bool:
 
     _activations[interactor] = interactable
     interactable._notify_activate_entered(interactor)
+    if _activations.get(interactor) != interactable:
+        # An activate handler deactivated synchronously; do not grant.
+        return false
     interactor._notify_activate_granted(interactable)
     return true
 

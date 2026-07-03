@@ -40,16 +40,18 @@ func _resolve_manager() -> void:
     if _manager == null:
         push_warning("%s: no XRInteractionManager in the scene tree." % name)
 
+func _is_manager_valid() -> bool:
+    return _manager != null and is_instance_valid(_manager)
+
 func _ready() -> void:
     var adapter := get_node_or_null(input_adapter_path)
     if adapter:
         set_input_adapter(adapter)
 
 func _exit_tree() -> void:
-    if _activated and _manager:
-        _manager.request_deactivate(self)
-    if _selected and _manager:
-        _manager.request_deselect(self)
+    _release_activate()
+    _release_select()
+    _set_hovered(null)
 
 func set_input_adapter(adapter: Node) -> void:
     if _adapter:
@@ -107,21 +109,31 @@ func _on_adapter_activate_ended(event_hand: int) -> void:
     _release_activate()
 
 func _try_select() -> void:
-    if _manager == null:
+    if not _is_manager_valid():
         _resolve_manager()
-    if _selected or _hovered == null or _manager == null:
+    if _selected or _hovered == null or not _is_manager_valid():
         return
     _manager.request_select(self, _hovered)
 
 func _release_select() -> void:
-    if _selected == null or _manager == null:
+    if _selected == null:
         return
-    _manager.request_deselect(self)
+    if not _is_manager_valid():
+        _resolve_manager()
+    if _is_manager_valid() and _manager.request_deselect(self):
+        return
+    # The manager is gone or was rebuilt and never knew this selection: clean
+    # up locally so the interactor cannot stay wedged in a selected state.
+    var released = _selected
+    _selected = null
+    if released and is_instance_valid(released):
+        released._notify_select_exited(self)
+        select_exited.emit(released)
 
 func _try_activate() -> void:
-    if _manager == null:
+    if not _is_manager_valid():
         _resolve_manager()
-    if _activated != null or _manager == null:
+    if _activated != null or not _is_manager_valid():
         return
 
     var target = _selected if _selected != null else _hovered
@@ -130,14 +142,22 @@ func _try_activate() -> void:
     _manager.request_activate(self, target)
 
 func _release_activate() -> void:
-    if _activated == null or _manager == null:
+    if _activated == null:
         return
-    _manager.request_deactivate(self)
+    if not _is_manager_valid():
+        _resolve_manager()
+    if _is_manager_valid() and _manager.request_deactivate(self):
+        return
+    var released = _activated
+    _activated = null
+    if released and is_instance_valid(released):
+        released._notify_activate_exited(self)
+        activate_exited.emit(released)
 
 func _set_hovered(interactable) -> void:
     if interactable == _hovered:
         return
-    if _hovered:
+    if _hovered and is_instance_valid(_hovered):
         _hovered._notify_hover_exited(self)
         hover_exited.emit(_hovered)
     _hovered = interactable
