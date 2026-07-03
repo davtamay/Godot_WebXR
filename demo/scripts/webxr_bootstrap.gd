@@ -228,6 +228,8 @@ func _optional_features_for(session_mode: String) -> String:
     var features: Array[String] = ["local-floor"]
     if session_mode == "immersive-vr":
         features.append("bounded-floor")
+    if session_mode == "immersive-ar":
+        features.append("depth-sensing")
     if not require_hand_tracking:
         features.append("hand-tracking")
     return ", ".join(features)

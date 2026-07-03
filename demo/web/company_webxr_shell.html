@@ -115,14 +115,24 @@
         referenceSpaceType: '',
         latest: { frame: 0, hands: {} },
       };
+      const depthBridge = {
+        available: !!navigator.xr,
+        latest: {
+          frame: 0,
+          enabled: false,
+          sampleCount: 0,
+          error: 'Enter AR and request depth mesh.',
+        },
+      };
       window.CompanyWebXRHandBridge = bridge;
+      window.CompanyWebXRDepthBridge = depthBridge;
 
       if (!navigator.xr || navigator.xr.__companyHandBridgePatched) return;
       navigator.xr.__companyHandBridgePatched = true;
 
       const originalRequestSession = navigator.xr.requestSession.bind(navigator.xr);
       navigator.xr.requestSession = async function patchedRequestSession(mode, options) {
-        const session = await originalRequestSession(mode, options);
+        const session = await originalRequestSession(mode, withOptionalDepthSensing(mode, options || {}));
         patchSession(session);
         return session;
       };
@@ -144,6 +154,7 @@
         session.requestAnimationFrame = function patchedRequestAnimationFrame(callback) {
           return originalRequestAnimationFrame(function handBridgeFrame(time, frame) {
             updateHandsFromFrame(frame, time);
+            updateDepthFromFrame(frame, time);
             return callback(time, frame);
           });
         };
@@ -152,7 +163,31 @@
           bridge.session = null;
           bridge.referenceSpace = null;
           bridge.latest = { frame: bridge.latest.frame || 0, hands: {} };
+          depthBridge.latest = {
+            frame: depthBridge.latest.frame || 0,
+            enabled: false,
+            sampleCount: 0,
+            error: 'WebXR session ended.',
+          };
         });
+      }
+
+      function withOptionalDepthSensing(mode, options) {
+        const next = Object.assign({}, options);
+        if (mode !== 'immersive-ar') return next;
+
+        const optionalFeatures = new Set(Array.from(next.optionalFeatures || []));
+        optionalFeatures.add('depth-sensing');
+        next.optionalFeatures = Array.from(optionalFeatures);
+        if (!next.depthSensing) {
+          next.depthSensing = {
+            usagePreference: ['cpu-optimized', 'gpu-optimized'],
+            dataFormatPreference: ['float32', 'luminance-alpha', 'unsigned-short'],
+            depthTypeRequest: ['smooth', 'raw'],
+            matchDepthView: true,
+          };
+        }
+        return next;
       }
 
       function updateHandsFromFrame(frame, time) {
@@ -195,6 +230,130 @@
           time,
           referenceSpaceType: bridge.referenceSpaceType,
           hands,
+        };
+      }
+
+      function updateDepthFromFrame(frame, time) {
+        if (!bridge.referenceSpace || frame.session.mode !== 'immersive-ar') return;
+        if (depthBridge.lastCaptureTime && time - depthBridge.lastCaptureTime < 250) return;
+        depthBridge.lastCaptureTime = time;
+
+        if (!frame.getDepthInformation || !frame.getViewerPose) {
+          depthBridge.latest = depthFailure('XRFrame.getDepthInformation is unavailable.');
+          return;
+        }
+
+        let usage = 'unknown';
+        let dataFormat = 'unknown';
+        let active = null;
+        try {
+          usage = frame.session.depthUsage || usage;
+          dataFormat = frame.session.depthDataFormat || dataFormat;
+          active = frame.session.depthActive;
+        } catch (_) {}
+
+        let pose = null;
+        try {
+          pose = frame.getViewerPose(bridge.referenceSpace);
+        } catch (error) {
+          depthBridge.latest = depthFailure(`viewer pose failed: ${error}`);
+          return;
+        }
+        if (!pose || !pose.views || pose.views.length === 0) {
+          depthBridge.latest = depthFailure('No viewer pose for depth capture.');
+          return;
+        }
+
+        const view = pose.views.find((candidate) => candidate.eye === 'left') || pose.views[0];
+        let depthInfo = null;
+        try {
+          depthInfo = frame.getDepthInformation(view);
+        } catch (error) {
+          depthBridge.latest = depthFailure(`${error.name || 'DepthError'}: ${error.message || error}`, usage, dataFormat, active);
+          return;
+        }
+        if (!depthInfo || !depthInfo.getDepthInMeters) {
+          depthBridge.latest = depthFailure('No CPU depth information this frame.', usage, dataFormat, active);
+          return;
+        }
+
+        const sampleWidth = 28;
+        const sampleHeight = 18;
+        const samples = [];
+        const viewMatrix = view.transform.matrix;
+        const projection = view.projectionMatrix;
+        const fx = Math.abs(projection[0]) > 0.00001 ? projection[0] : 1.0;
+        const fy = Math.abs(projection[5]) > 0.00001 ? projection[5] : 1.0;
+        let validCount = 0;
+
+        for (let y = 0; y < sampleHeight; y += 1) {
+          const v = (y + 0.5) / sampleHeight;
+          for (let x = 0; x < sampleWidth; x += 1) {
+            const u = (x + 0.5) / sampleWidth;
+            let depthMeters = 0.0;
+            try {
+              depthMeters = depthInfo.getDepthInMeters(u, v);
+            } catch (_) {
+              depthMeters = 0.0;
+            }
+
+            if (!Number.isFinite(depthMeters) || depthMeters <= 0.05 || depthMeters > 6.0) {
+              samples.push({ valid: false, d: 0.0 });
+              continue;
+            }
+
+            const localX = (u * 2.0 - 1.0) * depthMeters / fx;
+            const localY = (1.0 - v * 2.0) * depthMeters / fy;
+            const localZ = -depthMeters;
+            const point = transformPoint(viewMatrix, localX, localY, localZ);
+            samples.push({
+              valid: true,
+              u,
+              v,
+              d: depthMeters,
+              x: point.x,
+              y: point.y,
+              z: point.z,
+            });
+            validCount += 1;
+          }
+        }
+
+        depthBridge.latest = {
+          frame: (depthBridge.latest.frame || 0) + 1,
+          time,
+          enabled: true,
+          active,
+          usage,
+          dataFormat,
+          depthWidth: depthInfo.width || 0,
+          depthHeight: depthInfo.height || 0,
+          sampleWidth,
+          sampleHeight,
+          sampleCount: validCount,
+          samples,
+          error: '',
+        };
+      }
+
+      function depthFailure(error, usage = 'unknown', dataFormat = 'unknown', active = null) {
+        return {
+          frame: (depthBridge.latest.frame || 0) + 1,
+          enabled: false,
+          active,
+          usage,
+          dataFormat,
+          sampleCount: 0,
+          samples: [],
+          error,
+        };
+      }
+
+      function transformPoint(matrix, x, y, z) {
+        return {
+          x: matrix[0] * x + matrix[4] * y + matrix[8] * z + matrix[12],
+          y: matrix[1] * x + matrix[5] * y + matrix[9] * z + matrix[13],
+          z: matrix[2] * x + matrix[6] * y + matrix[10] * z + matrix[14],
         };
       }
 

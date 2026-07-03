@@ -1,4 +1,4 @@
-[gd_scene load_steps=44 format=3]
+[gd_scene load_steps=45 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
@@ -16,6 +16,7 @@
 [ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd" id="15_screen_ray"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd" id="16_direct"]
+[ext_resource type="Script" path="res://scripts/webxr_depth_mesh_visualizer.gd" id="17_depth_mesh"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -119,10 +120,10 @@ radius = 0.25
 size = Vector3(8, 0.08, 7)
 
 [sub_resource type="QuadMesh" id="QuadMesh_ui_panel"]
-size = Vector2(2.1, 1.35)
+size = Vector2(2.1, 1.55)
 
 [sub_resource type="BoxShape3D" id="BoxShape_ui_panel"]
-size = Vector3(2.1, 1.35, 0.08)
+size = Vector3(2.1, 1.55, 0.08)
 
 [node name="Main" type="Node3D"]
 script = ExtResource("1_main")
@@ -172,6 +173,9 @@ status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContai
 left_fallback_pose_path = NodePath("../LeftController")
 right_fallback_pose_path = NodePath("../RightController")
 world_status_label_path = NodePath("../../XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer/StateLabel")
+
+[node name="DepthMeshVisualizer" type="Node3D" parent="XROrigin3D"]
+script = ExtResource("17_depth_mesh")
 
 [node name="LeftDirectInteractor" type="Node3D" parent="XROrigin3D"]
 script = ExtResource("16_direct")
@@ -286,7 +290,7 @@ text = "HOVER / SELECT TARGET"
 font_size = 34
 
 [node name="UILabel" type="Label3D" parent="SampleEnvironment"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.06, -3.02)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.22, -3.02)
 text = "XR UI RAY TEST"
 font_size = 34
 
@@ -388,8 +392,8 @@ script = ExtResource("13_ui_canvas")
 viewport_path = NodePath("Viewport")
 panel_mesh_path = NodePath("PanelMesh")
 camera_path = NodePath("../XROrigin3D/XRCamera3D")
-panel_size = Vector2(2.1, 1.35)
-viewport_pixel_size = Vector2i(1100, 820)
+panel_size = Vector2(2.1, 1.55)
+viewport_pixel_size = Vector2i(1220, 900)
 
 [node name="PanelMesh" type="MeshInstance3D" parent="XRUIPanel"]
 mesh = SubResource("QuadMesh_ui_panel")
@@ -400,7 +404,7 @@ mesh = SubResource("QuadMesh_ui_panel")
 shape = SubResource("BoxShape_ui_panel")
 
 [node name="Viewport" type="SubViewport" parent="XRUIPanel"]
-size = Vector2i(1100, 820)
+size = Vector2i(1220, 900)
 disable_3d = true
 render_target_update_mode = 4
 
@@ -465,6 +469,13 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 30
 text = "Press"
+
+[node name="DepthButton" type="Button" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Depth Mesh"
 
 [node name="ResetButton" type="Button" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true

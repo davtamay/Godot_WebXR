@@ -20,6 +20,7 @@ const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runt
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
 const WebXRHandVisualizer := preload("res://scripts/webxr_hand_visualizer.gd")
+const WebXRDepthMeshVisualizer := preload("res://scripts/webxr_depth_mesh_visualizer.gd")
 
 var _checks := 0
 var _failures := 0
@@ -33,6 +34,7 @@ func _run_all() -> void:
     _test_hand_ray_geometry()
     _test_hand_tracker_resolver_validity()
     _test_hand_visualizer_fallback_shape()
+    await _test_depth_mesh_visualizer_builds_fake_snapshot()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
@@ -184,6 +186,33 @@ func _test_hand_visualizer_fallback_shape() -> void:
     check(right_index.z < -0.1, "fallback fingers extend forward from the hand pose")
     var wrapped_status: String = visualizer.call("_format_world_status", "Hand tracking: Left, Right | L 25 browser joints frame=10 | R 25 browser joints frame=10.")
     check(wrapped_status.split("\n").size() == 3, "world hand tracking diagnostics wrap into multiple lines")
+    visualizer.free()
+
+func _test_depth_mesh_visualizer_builds_fake_snapshot() -> void:
+    var visualizer := WebXRDepthMeshVisualizer.new()
+    root.add_child(visualizer)
+    await process_frame
+
+    var samples := []
+    for y in range(3):
+        for x in range(3):
+            samples.append({
+                "valid": true,
+                "d": 1.0,
+                "x": float(x) * 0.1,
+                "y": float(y) * 0.1,
+                "z": -1.0,
+            })
+
+    var message: String = visualizer.call("_build_depth_mesh_from_snapshot", {
+        "sampleWidth": 3,
+        "sampleHeight": 3,
+        "samples": samples,
+        "usage": "cpu-optimized",
+        "dataFormat": "float32",
+    })
+    check(message.find("9 pts") >= 0, "depth mesh builds from fake depth samples")
+    check(message.find("8 tris") >= 0, "depth mesh triangulates fake depth grid")
     visualizer.free()
 
 func _test_manager_registry_and_arbitration() -> void:
