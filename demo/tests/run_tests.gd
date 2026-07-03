@@ -11,6 +11,7 @@ const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit
 const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
+const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
 
 var _checks := 0
 var _failures := 0
@@ -26,6 +27,7 @@ func _run_all() -> void:
     _test_interactor_hover_and_select()
     _test_ray_grab_distance_clamp()
     await _test_ray_hover_and_grab_integration()
+    _test_webxr_adapter_inert_on_desktop()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -247,3 +249,12 @@ func _test_ray_hover_and_grab_integration() -> void:
     adapter.free()
     interactable.free()
     manager.free()
+
+func _test_webxr_adapter_inert_on_desktop() -> void:
+    var adapter := WebXRInputAdapter.new()
+    root.add_child(adapter)
+    check(adapter.get_aim_pose(XRInputAdapter.Hand.LEFT).is_empty(), "no aim pose without a WebXR session")
+    check(adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT).is_empty(), "no aim pose for either hand")
+    check(adapter.get_source_kind(XRInputAdapter.Hand.LEFT) == XRInputAdapter.SourceKind.NONE, "source kind NONE on desktop")
+    check(not adapter.is_hand_active(XRInputAdapter.Hand.LEFT), "hand inactive on desktop")
+    adapter.free()
