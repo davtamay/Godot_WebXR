@@ -187,6 +187,7 @@ hover_radius = 0.18
 script = ExtResource("7_ray")
 input_adapter_path = NodePath("../../WebXRInputAdapter")
 hand = 0
+suppress_interactor_path = NodePath("../LeftDirectInteractor")
 
 [node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/LeftRayInteractor"]
 script = ExtResource("9_line")
@@ -200,6 +201,7 @@ script = ExtResource("7_ray")
 input_adapter_path = NodePath("../../WebXRInputAdapter")
 hand = 1
 interaction_layers = 3
+suppress_interactor_path = NodePath("../RightDirectInteractor")
 
 [node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
 script = ExtResource("9_line")

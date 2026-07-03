@@ -17,10 +17,10 @@ const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolki
 @export var synthesize_pinch_select := true
 @export var pinch_start_distance := 0.035
 @export var pinch_end_distance := 0.055
-## Keeps a hand ray from jumping when thumb/index pinch geometry changes.
+## Experimental: keeps a hand ray from jumping when thumb/index pinch geometry changes.
 ## While selected, the cached pre-select ray translates with the palm but keeps
 ## its aim direction stable until release.
-@export var stabilize_hand_select := true
+@export var stabilize_hand_select := false
 
 var _webxr
 var _origin: Node3D

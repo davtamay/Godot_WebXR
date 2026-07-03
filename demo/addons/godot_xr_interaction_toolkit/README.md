@@ -20,7 +20,9 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
      near hand grabs, then one `XRRayInteractor` (`Node3D`) per hand for far
      grabs; set `hand` (`0` = left, `1` = right) and `input_adapter_path` at
      the adapter. Put direct interactors before rays in the scene tree so a
-     nearby object gets first chance on pinch. Add `XRInteractorLineVisual` and
+     nearby object gets first chance on pinch. Point each ray's
+     `suppress_interactor_path` at that hand's direct interactor so the far ray
+     hides while near hover/grab is active. Add `XRInteractorLineVisual` and
      `XRReticleVisual` (`MeshInstance3D`) children to ray interactors for the
      beam and cursor.
    - For desktop/mobile preview, add one `XRScreenRayInteractor` (`Node3D`) and

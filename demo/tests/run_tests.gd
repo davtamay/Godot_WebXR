@@ -35,6 +35,7 @@ func _run_all() -> void:
     _test_ray_grab_distance_clamp()
     await _test_direct_hover_and_grab_integration()
     await _test_ray_hover_and_grab_integration()
+    _test_ray_suppressed_by_direct_interactor()
     _test_webxr_adapter_inert_on_desktop()
     _test_hand_select_stabilization_math()
     _test_grab_follow()
@@ -340,6 +341,48 @@ func _test_ray_hover_and_grab_integration() -> void:
     interactable.free()
     manager.free()
 
+func _test_ray_suppressed_by_direct_interactor() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var rig := Node3D.new()
+    root.add_child(rig)
+
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+
+    var adapter := FakeAdapter.new()
+    adapter.pose = {"origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    root.add_child(adapter)
+
+    var direct := XRDirectInteractor.new()
+    direct.name = "Direct"
+    rig.add_child(direct)
+
+    var ray := XRRayInteractor.new()
+    ray.suppress_interactor_path = NodePath("../Direct")
+    rig.add_child(ray)
+    ray.call("set_input_adapter", adapter)
+
+    direct._set_hovered(interactable)
+    ray.call("_update_ray")
+    check(not ray.get_ray_state().get("valid", true) and ray.get_ray_state().get("suppressed", false), "far ray suppressed while linked direct interactor hovers")
+
+    direct._set_hovered(null)
+    direct._notify_select_granted(interactable)
+    ray.call("_update_ray")
+    check(not ray.get_ray_state().get("valid", true) and ray.get_ray_state().get("suppressed", false), "far ray suppressed while linked direct interactor selects")
+
+    direct._notify_select_released(interactable)
+    ray.call("_update_ray")
+    check(ray.get_ray_state().get("valid", false), "far ray valid when linked direct interactor is inactive")
+
+    ray.free()
+    direct.free()
+    adapter.free()
+    interactable.free()
+    rig.free()
+    manager.free()
+
 func _test_webxr_adapter_inert_on_desktop() -> void:
     var adapter := WebXRInputAdapter.new()
     root.add_child(adapter)
@@ -347,6 +390,7 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT).is_empty(), "no aim pose for either hand")
     check(adapter.get_source_kind(XRInputAdapter.Hand.LEFT) == XRInputAdapter.SourceKind.NONE, "source kind NONE on desktop")
     check(not adapter.is_hand_active(XRInputAdapter.Hand.LEFT), "hand inactive on desktop")
+    check(not adapter.stabilize_hand_select, "hand ray select stabilization defaults off")
     adapter.free()
 
 func _test_hand_select_stabilization_math() -> void:

@@ -9,11 +9,21 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 @export_flags_3d_physics var collision_mask := 1
 @export var collide_with_areas := true
 @export var min_grab_distance := 0.25
+## Optional linked near/direct interactor. When it is active, this far ray is
+## suppressed so one hand does not show or select with near and far at once.
+@export var suppress_interactor_path: NodePath
+@export var suppress_on_linked_hover := true
+@export var suppress_on_linked_select := true
 
 var _ray_state := {"valid": false}
 var _grab_distance := 0.0
 var _hover_distance := 0.0
 var _attach_pose := Transform3D.IDENTITY
+var _suppress_interactor: Node
+
+func _ready() -> void:
+    super()
+    _resolve_suppression_interactor()
 
 func _physics_process(_delta: float) -> void:
     _update_ray()
@@ -27,6 +37,11 @@ func get_attach_pose() -> Transform3D:
     return _attach_pose
 
 func _update_ray() -> void:
+    if _selected == null and _is_suppressed_by_linked_interactor():
+        _ray_state = {"valid": false, "suppressed": true}
+        _set_hovered(null)
+        return
+
     var pose: Dictionary = _adapter.get_aim_pose(hand) if _adapter else {}
     if pose.is_empty():
         _ray_state = {"valid": false}
@@ -75,3 +90,23 @@ func _intersect(origin: Vector3, direction: Vector3) -> Dictionary:
 func _notify_select_granted(interactable) -> void:
     _grab_distance = clampf(_hover_distance, min_grab_distance, max_distance)
     super(interactable)
+
+func _resolve_suppression_interactor() -> void:
+    _suppress_interactor = null
+    if suppress_interactor_path.is_empty():
+        return
+    _suppress_interactor = get_node_or_null(suppress_interactor_path)
+
+func _is_suppressed_by_linked_interactor() -> bool:
+    if suppress_interactor_path.is_empty():
+        return false
+    if _suppress_interactor == null or not is_instance_valid(_suppress_interactor):
+        _resolve_suppression_interactor()
+    if _suppress_interactor == null:
+        return false
+
+    if suppress_on_linked_select and _suppress_interactor.has_method("get_selected") and _suppress_interactor.get_selected() != null:
+        return true
+    if suppress_on_linked_hover and _suppress_interactor.has_method("get_hovered") and _suppress_interactor.get_hovered() != null:
+        return true
+    return false
