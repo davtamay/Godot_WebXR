@@ -12,7 +12,8 @@ const TRACKER_PATHS := {
     XRInputAdapter.Hand.RIGHT: &"/user/hand_tracker/right",
 }
 
-const POSITION_VALID_FLAGS := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
+const POSITION_VALID_FLAG := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID
+const STALE_JOINT_EPSILON_SQUARED := 0.000001
 const JOINTS_TO_SCORE := [
     XRHandTracker.HAND_JOINT_PALM,
     XRHandTracker.HAND_JOINT_WRIST,
@@ -55,7 +56,11 @@ static func valid_joint_count(tracker: XRHandTracker) -> int:
 static func joint_position_valid(tracker: XRHandTracker, joint: int) -> bool:
     if tracker == null:
         return false
-    return (tracker.get_hand_joint_flags(joint) & POSITION_VALID_FLAGS) != 0
+    if (tracker.get_hand_joint_flags(joint) & POSITION_VALID_FLAG) == 0:
+        return false
+
+    var origin := tracker.get_hand_joint_transform(joint).origin
+    return origin.is_finite() and origin.length_squared() > STALE_JOINT_EPSILON_SQUARED
 
 static func tracker_debug_name(hand_id: int, tracker: XRHandTracker) -> String:
     if tracker == null:
@@ -77,13 +82,13 @@ static func _score_tracker(tracker: XRHandTracker, expected_hand: int, side_text
     if not hand_matches and not name_matches:
         return 0
 
-    var score := valid_joint_count(tracker) * 10
+    var score := valid_joint_count(tracker) * 1000
     if tracker.has_tracking_data:
-        score += 5
+        score += 100
     if hand_matches:
-        score += 1000
+        score += 20
     if name_matches:
-        score += 500
+        score += 10
     return score
 
 static func _expected_tracker_hand(hand_id: int) -> int:

@@ -7,6 +7,7 @@ extends SceneTree
 const XRInteractionLayerMask := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_layers.gd")
 const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_gesture_provider.gd")
+const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
 const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd")
 const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
@@ -30,6 +31,7 @@ func _run_all() -> void:
     print("== XR Interaction Toolkit tests ==")
     _test_layer_mask()
     _test_hand_ray_geometry()
+    _test_hand_tracker_resolver_validity()
     _test_hand_visualizer_fallback_shape()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
@@ -104,6 +106,69 @@ func _test_hand_ray_geometry() -> void:
 func _set_joint(tracker: XRHandTracker, joint: int, position: Vector3, flags: int) -> void:
     tracker.set_hand_joint_transform(joint, Transform3D(Basis.IDENTITY, position))
     tracker.set_hand_joint_flags(joint, flags)
+
+func _test_hand_tracker_resolver_validity() -> void:
+    var tracked_only := XRHandTracker.new()
+    _set_joint(
+        tracked_only,
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP,
+        Vector3(0.08, 1.1, -0.25),
+        XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
+    )
+    check(
+        not XRHandTrackerResolver.joint_position_valid(tracked_only, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP),
+        "tracked-only hand joint is not treated as position-valid"
+    )
+
+    var default_joint := XRHandTracker.new()
+    _set_joint(
+        default_joint,
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP,
+        Vector3.ZERO,
+        XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
+    )
+    check(
+        not XRHandTrackerResolver.joint_position_valid(default_joint, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP),
+        "zero/default hand joint is ignored as stale startup data"
+    )
+
+    var valid_joint := XRHandTracker.new()
+    _set_joint(
+        valid_joint,
+        XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP,
+        Vector3(0.08, 1.1, -0.25),
+        XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID
+    )
+    check(
+        XRHandTrackerResolver.joint_position_valid(valid_joint, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP),
+        "nonzero position-valid hand joint is accepted"
+    )
+
+    var matching_but_empty := XRHandTracker.new()
+    matching_but_empty.hand = XRPositionalTracker.TRACKER_HAND_RIGHT
+    matching_but_empty.has_tracking_data = true
+
+    var live_joints := XRHandTracker.new()
+    live_joints.hand = XRPositionalTracker.TRACKER_HAND_RIGHT
+    live_joints.has_tracking_data = true
+    var valid := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
+    _set_joint(live_joints, XRHandTracker.HAND_JOINT_PALM, Vector3(0.08, 1.1, -0.2), valid)
+    _set_joint(live_joints, XRHandTracker.HAND_JOINT_WRIST, Vector3(0.08, 1.02, -0.15), valid)
+    _set_joint(live_joints, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(0.1, 1.18, -0.38), valid)
+
+    var empty_score: int = XRHandTrackerResolver._score_tracker(
+        matching_but_empty,
+        XRPositionalTracker.TRACKER_HAND_RIGHT,
+        "right",
+        "/user/hand_tracker/right"
+    )
+    var live_score: int = XRHandTrackerResolver._score_tracker(
+        live_joints,
+        XRPositionalTracker.TRACKER_HAND_RIGHT,
+        "right",
+        "right-live-joints"
+    )
+    check(live_score > empty_score, "live hand joints outrank same-hand tracker metadata")
 
 func _test_hand_visualizer_fallback_shape() -> void:
     var visualizer := WebXRHandVisualizer.new()
