@@ -11,6 +11,8 @@ extends Node3D
 @export var show_tracking_diagnostics := true
 @export var render_fallback_hand_mesh := false
 @export var stale_joint_pose_max_distance := 0.65
+@export var startup_mesh_warmup_seconds := 1.5
+@export var startup_live_anchor_delta := 0.015
 @export var left_fallback_pose_path: NodePath
 @export var right_fallback_pose_path: NodePath
 
@@ -81,6 +83,8 @@ var _hands := {}
 var _last_hand_debug := {}
 var _last_tracking_summary := ""
 var _status_elapsed := 0.0
+var _xr_active := false
+var _xr_elapsed := 0.0
 
 func _ready() -> void:
     _status_label = get_node_or_null(status_label_path) as Label
@@ -92,9 +96,20 @@ func _process(delta: float) -> void:
     _status_elapsed += delta
 
     if not get_viewport().use_xr:
+        _xr_active = false
+        _xr_elapsed = 0.0
         for hand_data in _hands.values():
+            _reset_hand_startup_state(hand_data)
             hand_data["root"].visible = false
         return
+
+    if not _xr_active:
+        _xr_active = true
+        _xr_elapsed = 0.0
+        for hand_data in _hands.values():
+            _reset_hand_startup_state(hand_data)
+    else:
+        _xr_elapsed += delta
 
     var active_hands: Array[String] = []
     for hand_name in _hands.keys():
@@ -165,6 +180,9 @@ func _create_hand(hand_name: String, hand_id: int, fallback_pose_path: NodePath,
         "pinch_material": pinch_material,
         "joints": joint_nodes,
         "bones": bone_nodes,
+        "last_anchor": null,
+        "live_anchor_delta": 0.0,
+        "startup_ready": false,
     }
     _last_hand_debug[hand_name] = "pending"
 
@@ -218,6 +236,18 @@ func _update_hand(hand_data: Dictionary) -> bool:
         return false
 
     var source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
+    var anchor = _joint_anchor_position(joint_positions, joint_valid)
+    _update_hand_startup_state(hand_data, anchor)
+    if _hand_waiting_for_startup(hand_data):
+        _last_hand_debug[hand_name] = "%d joints warming %.2fs live=%.3f src=%s" % [
+            valid_joint_count,
+            maxf(startup_mesh_warmup_seconds - _xr_elapsed, 0.0),
+            float(hand_data["live_anchor_delta"]),
+            source,
+        ]
+        root.visible = false
+        return false
+
     if _joint_pose_looks_stale(hand_data, joint_positions, joint_valid):
         _last_hand_debug[hand_name] = "%d joints stale src=%s" % [valid_joint_count, source]
         root.visible = false
@@ -231,6 +261,35 @@ func _update_hand(hand_data: Dictionary) -> bool:
 
 func _is_joint_position_valid(tracker: XRHandTracker, joint_id: int) -> bool:
     return XRHandTrackerResolver.joint_position_valid(tracker, joint_id)
+
+func _reset_hand_startup_state(hand_data: Dictionary) -> void:
+    hand_data["last_anchor"] = null
+    hand_data["live_anchor_delta"] = 0.0
+    hand_data["startup_ready"] = false
+
+func _update_hand_startup_state(hand_data: Dictionary, anchor) -> void:
+    if bool(hand_data["startup_ready"]):
+        return
+    if anchor == null:
+        return
+
+    var anchor_position := anchor as Vector3
+    var last_anchor = hand_data["last_anchor"]
+    if last_anchor != null:
+        var delta := anchor_position.distance_to(last_anchor as Vector3)
+        if delta > 0.001:
+            hand_data["live_anchor_delta"] = float(hand_data["live_anchor_delta"]) + delta
+
+    hand_data["last_anchor"] = anchor_position
+    if float(hand_data["live_anchor_delta"]) >= startup_live_anchor_delta:
+        hand_data["startup_ready"] = true
+
+func _hand_waiting_for_startup(hand_data: Dictionary) -> bool:
+    if startup_mesh_warmup_seconds > 0.0 and _xr_elapsed < startup_mesh_warmup_seconds:
+        return true
+    if startup_live_anchor_delta > 0.0 and not bool(hand_data["startup_ready"]):
+        return true
+    return false
 
 func _joint_pose_looks_stale(hand_data: Dictionary, joint_positions: Dictionary, joint_valid: Dictionary) -> bool:
     if stale_joint_pose_max_distance <= 0.0:
