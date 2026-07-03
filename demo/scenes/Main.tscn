@@ -1,8 +1,10 @@
-[gd_scene load_steps=12 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
 [ext_resource type="Script" path="res://scripts/browser_capabilities.gd" id="3_caps"]
+[ext_resource type="Script" path="res://scripts/webxr_hand_visualizer.gd" id="4_hands"]
+[ext_resource type="Script" path="res://scripts/xr_ray_interactor.gd" id="5_ray"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -26,6 +28,9 @@ roughness = 0.4
 [sub_resource type="BoxMesh" id="BoxMesh_object"]
 size = Vector3(0.6, 0.6, 0.6)
 
+[sub_resource type="BoxShape3D" id="BoxShape_interactable"]
+size = Vector3(0.72, 0.72, 0.72)
+
 [sub_resource type="StandardMaterial3D" id="Material_marker"]
 albedo_color = Color(0.9, 0.72, 0.24, 1)
 roughness = 0.7
@@ -47,20 +52,45 @@ shadow_enabled = true
 
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
-[node name="Camera3D" type="Camera3D" parent="XROrigin3D"]
+[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
 transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 1.6, 3.0)
 current = true
 fov = 70.0
+
+[node name="LeftController" type="XRController3D" parent="XROrigin3D"]
+tracker = &"left_hand"
+pose = &"aim"
+show_when_tracked = true
+
+[node name="RightController" type="XRController3D" parent="XROrigin3D"]
+tracker = &"right_hand"
+pose = &"aim"
+show_when_tracked = true
+
+[node name="HandVisualizer" type="Node3D" parent="XROrigin3D"]
+script = ExtResource("4_hands")
+status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+
+[node name="RayInteractor" type="Node3D" parent="XROrigin3D"]
+script = ExtResource("5_ray")
+left_controller_path = NodePath("../LeftController")
+right_controller_path = NodePath("../RightController")
+status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 
 [node name="Floor" type="MeshInstance3D" parent="."]
 mesh = SubResource("PlaneMesh_floor")
 surface_material_override/0 = SubResource("Material_floor")
 
-[node name="InspectObject" type="MeshInstance3D" parent="."]
+[node name="InspectObject" type="MeshInstance3D" parent="." groups=["xr_interactable"]]
 unique_name_in_owner = true
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.1, -1.8)
 mesh = SubResource("BoxMesh_object")
 surface_material_override/0 = SubResource("Material_object")
+
+[node name="InteractableBody" type="StaticBody3D" parent="InspectObject"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="InspectObject/InteractableBody"]
+shape = SubResource("BoxShape_interactable")
 
 [node name="MarkerSphere" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.1, 0.12, -1.2)

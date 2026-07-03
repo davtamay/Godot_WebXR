@@ -7,6 +7,7 @@ extends Node3D
 @export var enter_xr_button_path: NodePath
 @export var status_label_path: NodePath
 @export var inspect_object_path: NodePath
+@export var enable_legacy_select_visuals := false
 
 var _webxr: XRInterface
 var _vr_supported := false
@@ -17,6 +18,7 @@ var _select_count := 0
 var _base_scale := Vector3.ONE
 var _base_material: Material
 var _highlight_material: StandardMaterial3D
+var _last_session_failed := false
 
 func _ready() -> void:
     _enter_button = get_node_or_null(enter_xr_button_path) as Button
@@ -80,25 +82,30 @@ func _on_enter_xr_pressed() -> void:
         return
 
     _webxr.session_mode = "immersive-vr"
-    _webxr.requested_reference_space_types = "bounded-floor, local-floor, local"
-    _webxr.required_features = "local-floor"
-    _webxr.optional_features = "bounded-floor, hand-tracking"
+    _webxr.requested_reference_space_types = "local"
+    _webxr.required_features = "layers"
+    _webxr.optional_features = "local-floor, bounded-floor, hand-tracking"
 
     _set_status("Requesting WebXR session…")
     if not _webxr.initialize():
         _set_status("WebXR initialize() returned false. Session was not requested.")
 
 func _on_session_started() -> void:
+    _last_session_failed = false
     get_viewport().use_xr = true
-    _set_status("WebXR session started. Use controller trigger/tap to send select input.")
+    _set_status("WebXR session started. Reference space: %s. Enabled features: %s." % [_webxr.reference_space_type, _webxr.enabled_features])
 
 func _on_session_ended() -> void:
     get_viewport().use_xr = false
+    if _last_session_failed:
+        return
     _set_status("WebXR session ended.")
 
 func _on_session_failed(message: String) -> void:
+    _last_session_failed = true
     get_viewport().use_xr = false
-    _set_status("WebXR session failed: " + message)
+    _set_status("WEBXR FAILED: " + message)
+    _show_browser_failure("WEBXR FAILED: " + message)
 
 func _connect_webxr_input_signal(signal_name: StringName, callback: Callable) -> void:
     if not _webxr.has_signal(signal_name):
@@ -110,8 +117,11 @@ func _connect_webxr_input_signal(signal_name: StringName, callback: Callable) ->
 
 func _on_webxr_select(input_source_id: int) -> void:
     _select_count += 1
-    _apply_select_visual_state()
-    _set_status("XR select received: %d (input source %d)" % [_select_count, input_source_id])
+    if enable_legacy_select_visuals:
+        _apply_select_visual_state()
+        _set_status("XR select received: %d (input source %d)" % [_select_count, input_source_id])
+    else:
+        print("XR select received: %d (input source %d)" % [_select_count, input_source_id])
 
 func _on_webxr_select_start(input_source_id: int) -> void:
     print("XR select started (input source %d)" % input_source_id)
@@ -132,3 +142,11 @@ func _set_status(message: String) -> void:
     if _status_label:
         _status_label.text = message
     print(message)
+
+func _show_browser_failure(message: String) -> void:
+    if not OS.has_feature("web") or not Engine.has_singleton("JavaScriptBridge"):
+        return
+
+    var js_bridge = Engine.get_singleton("JavaScriptBridge")
+    var encoded_message := JSON.stringify(message)
+    js_bridge.eval("window.CompanyWebXRFailure = %s; console.error(%s);" % [encoded_message, encoded_message], true)
