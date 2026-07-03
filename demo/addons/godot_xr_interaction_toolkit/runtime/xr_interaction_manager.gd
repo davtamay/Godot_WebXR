@@ -2,8 +2,8 @@ class_name XRInteractionManager
 extends Node
 
 ## Collider registry + select arbitration. One per scene, found via group.
-## Rules: an interactor selects at most one interactable; an interactable is
-## selected by at most one interactor. Two-hand grab relaxes this later.
+## Rules: an interactor selects at most one interactable; each interactable
+## decides whether it accepts one or multiple selecting interactors.
 
 const GROUP_NAME := &"xr_interaction_manager"
 
@@ -52,8 +52,11 @@ func unregister_interactable(interactable) -> void:
         if _collider_map[id] == interactable:
             _collider_map.erase(id)
 
-    var interactor = interactable.get_selecting_interactor()
-    if interactor:
+    var selecting_interactors := []
+    for interactor in _selections.keys():
+        if _selections[interactor] == interactable:
+            selecting_interactors.append(interactor)
+    for interactor in selecting_interactors:
         request_deselect(interactor)
 
 func get_interactable_for_collider(collider: Object):

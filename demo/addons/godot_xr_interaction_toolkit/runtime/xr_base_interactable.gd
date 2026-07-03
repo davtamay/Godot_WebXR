@@ -19,6 +19,7 @@ signal select_exited(interactor)
 
 var _hovering_interactors: Array[Node] = []
 var _selecting_interactor: Node
+var _selecting_interactors: Array[Node] = []
 var _registered_manager: Node
 
 func _notification(what: int) -> void:
@@ -70,16 +71,19 @@ func is_hovered() -> bool:
     return not _hovering_interactors.is_empty()
 
 func is_selected() -> bool:
-    return _selecting_interactor != null
+    return not _selecting_interactors.is_empty()
 
 func get_selecting_interactor() -> Node:
     return _selecting_interactor
+
+func get_selecting_interactors() -> Array[Node]:
+    return _selecting_interactors.duplicate()
 
 func can_hover(interactor) -> bool:
     return interactor != null and XRInteractionLayerMask.overlaps(interaction_layers, interactor.interaction_layers)
 
 func can_select(interactor) -> bool:
-    return _selecting_interactor == null and can_hover(interactor)
+    return _selecting_interactors.is_empty() and can_hover(interactor)
 
 func _notify_hover_entered(interactor) -> void:
     if _hovering_interactors.has(interactor):
@@ -94,11 +98,19 @@ func _notify_hover_exited(interactor) -> void:
     hover_exited.emit(interactor)
 
 func _notify_select_entered(interactor) -> void:
-    _selecting_interactor = interactor
+    if _selecting_interactors.has(interactor):
+        return
+    _selecting_interactors.append(interactor)
+    if _selecting_interactor == null:
+        _selecting_interactor = interactor
     select_entered.emit(interactor)
 
 func _notify_select_exited(interactor) -> void:
-    _selecting_interactor = null
+    if not _selecting_interactors.has(interactor):
+        return
+    _selecting_interactors.erase(interactor)
+    if _selecting_interactor == interactor:
+        _selecting_interactor = _selecting_interactors[0] if not _selecting_interactors.is_empty() else null
     select_exited.emit(interactor)
 
 func _collect_colliders(node: Node, out: Array[CollisionObject3D]) -> void:

@@ -267,7 +267,7 @@ font_size = 28
 
 [node name="RotationLabel" type="Label3D" parent="SampleEnvironment"]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 0.15, 0.45, -2.42)
-text = "TRACK ROTATION"
+text = "TWO HAND SCALE"
 font_size = 28
 
 [node name="SnapLabel" type="Label3D" parent="SampleEnvironment"]
@@ -322,6 +322,7 @@ shape = SubResource("SphereShape_grab")
 transform = Transform3D(0.92388, 0, 0.382683, 0, 1, 0, -0.382683, 0, 0.92388, 0.15, 0.58, -1.95)
 script = ExtResource("8_grab")
 track_rotation = true
+two_hand_grab_enabled = true
 
 [node name="Mesh" type="MeshInstance3D" parent="RotationGrab"]
 mesh = SubResource("CylinderMesh_grab")

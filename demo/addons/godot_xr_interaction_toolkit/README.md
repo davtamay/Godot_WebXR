@@ -41,8 +41,14 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
 Interaction layers: `interaction_layers` bitmasks on interactor and interactable
 must share a bit (default: both `1`). They are independent of physics layers;
 `XRDirectInteractor.collision_mask`, `XRRayInteractor.collision_mask`, and
-`XRScreenRayInteractor.collision_mask` control what each interactor can
+   `XRScreenRayInteractor.collision_mask` control what each interactor can
 physically hit.
+
+Two-hand grab: enable `two_hand_grab_enabled` on `XRGrabInteractable` to allow
+a second interactor to select the same object. With `two_hand_rotate` enabled,
+the object rotates with the hand-to-hand span. With `two_hand_scale` enabled,
+the object uniformly scales as the hands move closer/farther apart. One-hand
+grab behavior remains unchanged for objects that do not opt in.
 
 `WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
 runtime `XRController3D` aim pose first. On Quest hand tracking this better

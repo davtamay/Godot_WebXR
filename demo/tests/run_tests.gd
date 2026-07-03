@@ -44,6 +44,7 @@ func _run_all() -> void:
     _test_webxr_adapter_browser_bridge_pose_math()
     _test_hand_select_stabilization_math()
     _test_grab_follow()
+    _test_two_hand_grab_rotate_and_scale()
     _test_visuals_follow_ray_state()
     await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
@@ -565,6 +566,57 @@ func _test_grab_follow() -> void:
     grab._notify_select_exited(interactor)
 
     interactor.free()
+    grab.free()
+    manager.free()
+
+func _test_two_hand_grab_rotate_and_scale() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    grab.two_hand_grab_enabled = true
+    grab.two_hand_rotate = true
+    grab.two_hand_scale = true
+    root.add_child(grab)
+    grab.global_transform = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+
+    var left := FakeInteractor.new()
+    left.interaction_layers = 1
+    left.attach = Transform3D(Basis.IDENTITY, Vector3(-0.5, 0, 0))
+    root.add_child(left)
+
+    var right := FakeInteractor.new()
+    right.interaction_layers = 1
+    right.attach = Transform3D(Basis.IDENTITY, Vector3(0.5, 0, 0))
+    root.add_child(right)
+
+    check(manager.request_select(left, grab), "two-hand grab first hand selects")
+    check(manager.request_select(right, grab), "two-hand grab accepts a second hand")
+    check(grab.get_selecting_interactors().size() == 2, "two-hand grab tracks both selecting interactors")
+
+    left.attach.origin = Vector3(0, 0, -0.5)
+    right.attach.origin = Vector3(0, 0, 0.5)
+    grab._physics_process(1.0 / 60.0)
+    check((grab.global_transform.basis * Vector3.RIGHT).is_equal_approx(Vector3(0, 0, 1)), "two-hand grab rotates object with hand span")
+
+    manager.request_deselect(right)
+    check(grab.get_selecting_interactors().size() == 1, "two-hand grab releases one hand while keeping the other")
+    manager.request_deselect(left)
+
+    grab.global_transform = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    left.attach.origin = Vector3(-0.5, 0, 0)
+    right.attach.origin = Vector3(0.5, 0, 0)
+    check(manager.request_select(left, grab), "two-hand scale first hand selects")
+    check(manager.request_select(right, grab), "two-hand scale second hand selects")
+    left.attach.origin = Vector3(-1.0, 0, 0)
+    right.attach.origin = Vector3(1.0, 0, 0)
+    grab._physics_process(1.0 / 60.0)
+    check(grab.global_transform.basis.get_scale().is_equal_approx(Vector3(2, 2, 2)), "two-hand grab scales object by hand distance")
+
+    manager.request_deselect(right)
+    manager.request_deselect(left)
+    right.free()
+    left.free()
     grab.free()
     manager.free()
 
