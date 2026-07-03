@@ -20,6 +20,9 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
      `hand` (`0` = left, `1` = right) and `input_adapter_path` at the adapter.
      Add `XRInteractorLineVisual` and `XRReticleVisual` (`MeshInstance3D`)
      children for the beam and cursor.
+   - For desktop/mobile preview, add one `XRScreenRayInteractor` (`Node3D`) and
+     point `camera_path` at the scene camera. It turns mouse hover/click and
+     touch press/drag into the same hover/select pipeline as XR rays.
    - Make objects grabbable by giving them an `XRGrabInteractable` (`Node3D`)
      root with a `CollisionObject3D` descendant for the ray to hit.
 3. Feedback: connect to `hover_entered`, `hover_exited`, `select_entered`, and
@@ -32,7 +35,8 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
 
 Interaction layers: `interaction_layers` bitmasks on interactor and interactable
 must share a bit (default: both `1`). They are independent of physics layers;
-`XRRayInteractor.collision_mask` controls what the ray can physically hit.
+`XRRayInteractor.collision_mask` and `XRScreenRayInteractor.collision_mask`
+control what each ray can physically hit.
 
 ## Platform Notes
 

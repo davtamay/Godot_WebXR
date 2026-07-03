@@ -1,4 +1,4 @@
-[gd_scene load_steps=42 format=3]
+[gd_scene load_steps=43 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
@@ -14,6 +14,7 @@
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="13_ui_canvas"]
 [ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd" id="15_screen_ray"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -141,6 +142,11 @@ script = ExtResource("6_adapter")
 xr_origin_path = NodePath("../XROrigin3D")
 left_controller_path = NodePath("../XROrigin3D/LeftController")
 right_controller_path = NodePath("../XROrigin3D/RightController")
+
+[node name="ScreenRayInteractor" type="Node3D" parent="."]
+script = ExtResource("15_screen_ray")
+camera_path = NodePath("../XROrigin3D/XRCamera3D")
+interaction_layers = 3
 
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 

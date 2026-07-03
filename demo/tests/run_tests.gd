@@ -16,6 +16,7 @@ const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/r
 const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
 const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
+const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
 
 var _checks := 0
 var _failures := 0
@@ -36,6 +37,7 @@ func _run_all() -> void:
     _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_visuals_follow_ray_state()
+    await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
     await _test_ui_canvas_drag_slider()
     print("%d checks, %d failures" % [_checks, _failures])
@@ -381,6 +383,42 @@ func _test_visuals_follow_ray_state() -> void:
     check(not reticle.visible, "reticle hidden on a miss")
 
     ray.free()
+    manager.free()
+
+func _test_screen_ray_hover_and_select() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var interactable := XRBaseInteractable.new()
+    var body := StaticBody3D.new()
+    var shape := CollisionShape3D.new()
+    shape.shape = BoxShape3D.new()
+    body.add_child(shape)
+    interactable.add_child(body)
+    root.add_child(interactable)
+    interactable.position = Vector3(0, 0, -2)
+
+    var screen_ray := XRScreenRayInteractor.new()
+    root.add_child(screen_ray)
+
+    await physics_frame
+    await physics_frame
+
+    screen_ray.update_from_ray(Vector3.ZERO, Vector3(0, 0, -1))
+    check(screen_ray.get_hovered() == interactable, "screen ray hovers the box straight ahead")
+
+    screen_ray.call("_try_select")
+    check(screen_ray.get_selected() == interactable, "screen ray selects the hovered interactable")
+    check(interactable.is_selected(), "screen-selected interactable reports selected")
+
+    screen_ray.update_from_ray(Vector3(0, 0.4, 0), Vector3(0, 0, -1))
+    check(screen_ray.get_attach_pose().origin.is_equal_approx(Vector3(0, 0.4, -1.5)), "screen ray selected attach follows the pointer ray")
+
+    screen_ray.call("_release_select")
+    check(screen_ray.get_selected() == null, "screen ray releases selection")
+
+    screen_ray.free()
+    interactable.free()
     manager.free()
 
 func _test_ui_canvas_mapping() -> void:
