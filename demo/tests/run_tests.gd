@@ -5,7 +5,11 @@ extends SceneTree
 ## Exit code 0 = all checks passed, 1 = at least one failure.
 
 const XRInteractionLayerMask := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_layers.gd")
+const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_gesture_provider.gd")
+const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd")
+const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
+const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
 
 var _checks := 0
 var _failures := 0
@@ -17,6 +21,8 @@ func _run_all() -> void:
     print("== XR Interaction Toolkit tests ==")
     _test_layer_mask()
     _test_hand_ray_geometry()
+    _test_manager_registry_and_arbitration()
+    _test_interactor_hover_and_select()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -68,3 +74,94 @@ func _test_hand_ray_geometry() -> void:
 func _set_joint(tracker: XRHandTracker, joint: int, position: Vector3, flags: int) -> void:
     tracker.set_hand_joint_transform(joint, Transform3D(Basis.IDENTITY, position))
     tracker.set_hand_joint_flags(joint, flags)
+
+func _test_manager_registry_and_arbitration() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    var body := StaticBody3D.new()
+    interactable.add_child(body)
+    root.add_child(interactable)
+
+    check(manager.get_interactable_for_collider(body) == interactable, "collider resolves to its interactable")
+    check(manager.get_interactable_for_collider(null) == null, "null collider resolves to null")
+
+    var interactor_a := XRBaseInteractor.new()
+    var interactor_b := XRBaseInteractor.new()
+    root.add_child(interactor_a)
+    root.add_child(interactor_b)
+
+    check(manager.request_select(interactor_a, interactable), "first select is granted")
+    check(interactor_a.get_selected() == interactable, "interactor tracks its selection")
+    check(interactable.get_selecting_interactor() == interactor_a, "interactable tracks its selector")
+    check(not manager.request_select(interactor_b, interactable), "second interactor refused: interactable is exclusive")
+    check(not manager.request_select(interactor_a, interactable), "interactor cannot select twice")
+    check(manager.request_deselect(interactor_a), "deselect succeeds")
+    check(not interactable.is_selected(), "interactable is free after deselect")
+    check(interactor_a.get_selected() == null, "interactor is free after deselect")
+    check(manager.request_select(interactor_b, interactable), "freed interactable can be selected by another interactor")
+    manager.request_deselect(interactor_b)
+
+    interactable.interaction_layers = 2
+    interactor_a.interaction_layers = 1
+    check(not manager.request_select(interactor_a, interactable), "disjoint interaction layers refuse select")
+    interactable.interaction_layers = 1
+
+    root.remove_child(interactable)
+    check(manager.get_interactable_for_collider(body) == null, "collider unregistered when interactable exits tree")
+
+    interactor_a.free()
+    interactor_b.free()
+    interactable.free()
+    manager.free()
+
+func _test_interactor_hover_and_select() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := XRBaseInteractor.new()
+    root.add_child(interactor)
+
+    var events: Array[String] = []
+    interactor.hover_entered.connect(func(i) -> void: events.append("in:" + str(i == interactable)))
+    interactor.hover_exited.connect(func(i) -> void: events.append("out:" + str(i == interactable)))
+    interactable.select_entered.connect(func(_i) -> void: events.append("sel"))
+    interactable.select_exited.connect(func(_i) -> void: events.append("desel"))
+
+    interactor._set_hovered(interactable)
+    check(interactable.is_hovered(), "interactable reports hovered")
+    interactor._set_hovered(interactable)
+    interactor._set_hovered(null)
+    check(not interactable.is_hovered(), "interactable reports unhovered")
+    check(events == (["in:true", "out:true"] as Array[String]), "hover signals fire once per transition, got %s" % str(events))
+
+    events.clear()
+    var adapter := FakeAdapter.new()
+    root.add_child(adapter)
+    interactor.call("set_input_adapter", adapter)
+    interactor.set("hand", XRInputAdapter.Hand.RIGHT)
+    interactor._set_hovered(interactable)
+
+    adapter.select_started.emit(XRInputAdapter.Hand.LEFT)
+    check(interactor.get_selected() == null, "select for the other hand is ignored")
+    adapter.select_started.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_selected() == interactable, "select via adapter selects the hovered interactable")
+    adapter.select_ended.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_selected() == null, "select end releases the selection")
+    check("sel" in events and "desel" in events, "interactable select signals fired, got %s" % str(events))
+
+    interactor._set_hovered(null)
+    adapter.select_started.emit(XRInputAdapter.Hand.RIGHT)
+    check(interactor.get_selected() == null, "select with nothing hovered is a no-op")
+
+    adapter.free()
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+class FakeAdapter extends XRInputAdapter:
+    var pose := {}
+
+    func get_aim_pose(_hand: int) -> Dictionary:
+        return pose
