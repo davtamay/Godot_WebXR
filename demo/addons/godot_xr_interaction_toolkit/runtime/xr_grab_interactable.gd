@@ -30,6 +30,14 @@ enum MovementType { INSTANT, KINEMATIC_SMOOTH, VELOCITY_TRACKED }
 @export var track_rotation := false
 @export_range(0.0, 100.0, 0.1, "or_greater") var max_tracked_speed := 20.0
 
+@export_group("Throw")
+## Applies the sampled attach-pose velocity to a RigidBody3D target when the
+## final selecting interactor releases. This mirrors XRITK throw-on-release
+## behavior without requiring engine-level input velocity APIs.
+@export var throw_on_release := true
+@export_range(0.0, 10.0, 0.01, "or_greater") var throw_velocity_scale := 1.0
+@export_range(0.0, 100.0, 0.1, "or_greater") var max_throw_speed := 14.0
+
 @export_group("Two Hand Grab")
 ## Allows a second interactor to select the same object. The second hand rotates
 ## around the hand-to-hand axis change, and can uniformly scale by hand distance.
@@ -48,6 +56,9 @@ var _two_hand_start_midpoint := Vector3.ZERO
 var _two_hand_start_vector := Vector3.RIGHT
 var _two_hand_start_distance := 1.0
 var _two_hand_start_transform := Transform3D.IDENTITY
+var _last_throw_origin := Vector3.ZERO
+var _throw_linear_velocity := Vector3.ZERO
+var _has_throw_sample := false
 
 func get_target() -> Node3D:
     if target_path.is_empty():
@@ -70,6 +81,7 @@ func _notify_select_entered(interactor) -> void:
         _grabbing = interactor
         _grab_offset = _compute_grab_offset(interactor)
         _two_hand_active = false
+        _reset_throw_sample(_attach_pose_for(interactor))
     elif _grabbers.size() == 2:
         _begin_two_hand_grab()
 
@@ -79,13 +91,16 @@ func _notify_select_exited(interactor) -> void:
         _grabbers.erase(interactor)
 
     if _grabbers.is_empty():
+        _apply_throw_on_release()
         _grabbing = null
         _two_hand_active = false
+        _has_throw_sample = false
         return
 
     _grabbing = _grabbers[0]
     _grab_offset = _compute_grab_offset(_grabbing)
     _two_hand_active = false
+    _reset_throw_sample(_attach_pose_for(_grabbing))
 
 func _physics_process(delta: float) -> void:
     if _grabbers.is_empty():
@@ -99,14 +114,18 @@ func _physics_process(delta: float) -> void:
         if not _two_hand_active:
             _begin_two_hand_grab()
         if _two_hand_active:
-            _apply_movement(target, _compute_two_hand_transform(), delta, true, two_hand_track_position)
+            var desired := _compute_two_hand_transform()
+            _apply_movement(target, desired, delta, true, two_hand_track_position)
+            _sample_throw_velocity(Transform3D(Basis.IDENTITY, desired.origin), delta)
         return
 
     if _grabbing == null:
         return
 
-    var desired: Transform3D = _grabbing.get_attach_pose() * _grab_offset
+    var attach_pose := _attach_pose_for(_grabbing)
+    var desired: Transform3D = attach_pose * _grab_offset
     _apply_movement(target, desired, delta, track_rotation, track_position)
+    _sample_throw_velocity(attach_pose, delta)
 
 func _compute_grab_offset(interactor) -> Transform3D:
     var target := get_target()
@@ -116,6 +135,7 @@ func _compute_grab_offset(interactor) -> Transform3D:
         var attach_node := get_node_or_null(attach_transform_path) as Node3D
         if attach_node:
             return attach_node.global_transform.affine_inverse() * target.global_transform
+        return Transform3D.IDENTITY
     return interactor.get_attach_pose().affine_inverse() * target.global_transform
 
 func _begin_two_hand_grab() -> void:
@@ -216,6 +236,33 @@ func _apply_movement(target: Node3D, desired: Transform3D, delta: float, apply_b
                 var body_transform := body.global_transform
                 body_transform.basis = desired.basis
                 body.global_transform = body_transform
+
+func _reset_throw_sample(pose: Transform3D) -> void:
+    _last_throw_origin = pose.origin
+    _throw_linear_velocity = Vector3.ZERO
+    _has_throw_sample = true
+
+func _sample_throw_velocity(pose: Transform3D, delta: float) -> void:
+    if not throw_on_release or delta <= 0.0:
+        return
+    if not _has_throw_sample:
+        _reset_throw_sample(pose)
+        return
+
+    var velocity := (pose.origin - _last_throw_origin) / maxf(delta, 0.0001)
+    _throw_linear_velocity = velocity.limit_length(max_throw_speed)
+    _last_throw_origin = pose.origin
+
+func _apply_throw_on_release() -> void:
+    if not throw_on_release or not _has_throw_sample:
+        return
+
+    var body := get_target() as RigidBody3D
+    if body == null:
+        return
+
+    body.sleeping = false
+    body.linear_velocity = (_throw_linear_velocity * throw_velocity_scale).limit_length(max_throw_speed)
 
 func _interpolate_basis(from_basis: Basis, to_basis: Basis, weight: float) -> Basis:
     var from_scale := from_basis.get_scale()

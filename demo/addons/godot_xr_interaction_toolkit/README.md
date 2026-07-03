@@ -30,6 +30,10 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
      touch press/drag into the same hover/select pipeline as XR rays.
    - Make objects grabbable by giving them an `XRGrabInteractable` (`Node3D`)
      root with a `CollisionObject3D` descendant for the ray to hit.
+   - Add an `XRSocketInteractor` (`Node3D`) anywhere you need a snap zone.
+     Set `socket_radius` and place it at the desired attach pose. Objects with
+     `XRGrabInteractable.snap_to_attach = true` snap to the socket when the
+     socket auto-selects them.
 3. Feedback: connect to `hover_entered`, `hover_exited`, `select_entered`, and
    `select_exited` on interactors or interactables. The toolkit never changes
    your materials.
@@ -57,6 +61,11 @@ the object uniformly scales as the hands move closer/farther apart. Use
 `track_position`, `track_rotation`, and `two_hand_track_position` to constrain
 which transform channels follow the hands. One-hand grab behavior remains
 unchanged for objects that do not opt in.
+
+Throw on release: `XRGrabInteractable.throw_on_release` samples the selecting
+interactor's attach-pose velocity and applies it to a `RigidBody3D` target when
+the final interactor releases. Tune `throw_velocity_scale` and
+`max_throw_speed` per object.
 
 `WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
 runtime `XRController3D` aim pose first. On Quest hand tracking this better

@@ -21,9 +21,10 @@ the phase plan needs engine code).
 | Hover / Select / Activate | `hover_entered/exited`, `select_entered/exited`, (`activated` in Phase 4) | Godot signals, one argument = the other party |
 | Ray Interactor | `XRRayInteractor` | `PhysicsRayQueryParameters3D` + `direct_space_state.intersect_ray` |
 | Direct Interactor | `XRDirectInteractor` (Phase 3) | `Area3D` overlap tests |
-| Socket Interactor | `XRSocketInteractor` (Phase 3+) | `Area3D` + auto-select |
+| Socket Interactor | `XRSocketInteractor` | Physics shape query + auto-select snap zone |
 | Grab Interactable | `XRGrabInteractable` | Moves a target `Node3D`/`RigidBody3D`; movement modes below |
 | Movement Type (Instant/Kinematic/VelocityTracked) | `MovementType` enum | set transform / lerp / `linear_velocity` drive |
+| Throw On Release | `throw_on_release` on `XRGrabInteractable` | sampled attach-pose velocity applied to `RigidBody3D` target |
 | Attach Transform | `attach_transform_path` | Offset preserved via `Transform3D` math |
 | Interaction Layer Mask | `interaction_layers` int flags on both sides | `XRInteractionLayerMask.overlaps(a, b)` — decoupled from physics layers |
 | XR Controller (device wrapper) | `XRInputAdapter` + subclasses | See input adapters |

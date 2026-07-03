@@ -13,6 +13,7 @@ const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/r
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
 const XRDirectInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd")
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
+const XRSocketInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd")
 const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
 const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
@@ -47,8 +48,10 @@ func _run_all() -> void:
     _test_webxr_adapter_browser_bridge_pose_math()
     _test_hand_select_stabilization_math()
     _test_grab_follow()
+    _test_grab_throw_on_release()
     _test_two_hand_grab_rotate_and_scale()
     _test_grab_track_position_toggle()
+    await _test_socket_interactor_auto_selects_and_snaps()
     _test_visuals_follow_ray_state()
     await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
@@ -634,6 +637,33 @@ func _test_grab_follow() -> void:
     grab.free()
     manager.free()
 
+func _test_grab_throw_on_release() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    grab.target_path = NodePath("Body")
+    root.add_child(grab)
+
+    var body := RigidBody3D.new()
+    body.name = "Body"
+    grab.add_child(body)
+
+    var interactor := FakeInteractor.new()
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    root.add_child(interactor)
+
+    grab._notify_select_entered(interactor)
+    interactor.attach.origin = Vector3(0, 0, -1.0)
+    grab._physics_process(0.1)
+    grab._notify_select_exited(interactor)
+
+    check(body.linear_velocity.z < -9.0, "throw-on-release applies sampled attach velocity to rigid body")
+
+    interactor.free()
+    grab.free()
+    manager.free()
+
 func _test_two_hand_grab_rotate_and_scale() -> void:
     var manager := XRInteractionManager.new()
     root.add_child(manager)
@@ -705,6 +735,40 @@ func _test_grab_track_position_toggle() -> void:
     manager.request_deselect(interactor)
 
     interactor.free()
+    grab.free()
+    manager.free()
+
+func _test_socket_interactor_auto_selects_and_snaps() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var socket := XRSocketInteractor.new()
+    socket.socket_radius = 0.6
+    socket.position = Vector3.ZERO
+    root.add_child(socket)
+
+    var grab := XRGrabInteractable.new()
+    grab.snap_to_attach = true
+    grab.position = Vector3(0.25, 0, 0)
+
+    var body := StaticBody3D.new()
+    var shape := CollisionShape3D.new()
+    shape.shape = BoxShape3D.new()
+    body.add_child(shape)
+    grab.add_child(body)
+    root.add_child(grab)
+
+    await physics_frame
+    await physics_frame
+
+    check(socket.get_hovered() == grab, "socket interactor hovers the closest compatible interactable")
+    check(socket.get_selected() == grab, "socket interactor auto-selects a compatible interactable")
+
+    grab._physics_process(1.0 / 60.0)
+    check(grab.global_position.is_equal_approx(socket.global_position), "socket-selected snap interactable moves to socket attach pose")
+
+    socket.release_selected()
+    socket.free()
     grab.free()
     manager.free()
 
