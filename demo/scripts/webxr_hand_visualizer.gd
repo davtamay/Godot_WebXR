@@ -9,6 +9,8 @@ extends Node3D
 @export var bone_radius := 0.006
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
+@export var render_fallback_hand_mesh := false
+@export var stale_joint_pose_max_distance := 0.65
 @export var left_fallback_pose_path: NodePath
 @export var right_fallback_pose_path: NodePath
 
@@ -181,7 +183,7 @@ func _update_hand(hand_data: Dictionary) -> bool:
     var root := hand_data["root"] as Node3D
     var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
-        if _update_fallback_hand(hand_data, "no joints"):
+        if render_fallback_hand_mesh and _update_fallback_hand(hand_data, "no joints"):
             return true
         _last_hand_debug[hand_name] = "no tracker"
         root.visible = false
@@ -209,13 +211,18 @@ func _update_hand(hand_data: Dictionary) -> bool:
     if valid_joint_count == 0:
         var empty_source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
         var reason := "0 joints tracking=%s src=%s" % [str(tracker.has_tracking_data), empty_source]
-        if _update_fallback_hand(hand_data, reason):
+        if render_fallback_hand_mesh and _update_fallback_hand(hand_data, reason):
             return true
         _last_hand_debug[hand_name] = reason
         root.visible = false
         return false
 
     var source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
+    if _joint_pose_looks_stale(hand_data, joint_positions, joint_valid):
+        _last_hand_debug[hand_name] = "%d joints stale src=%s" % [valid_joint_count, source]
+        root.visible = false
+        return false
+
     _last_hand_debug[hand_name] = "%d joints tracking=%s src=%s" % [valid_joint_count, str(tracker.has_tracking_data), source]
     root.visible = true
     _update_bones(hand_data["bones"], joint_positions, joint_valid)
@@ -224,6 +231,44 @@ func _update_hand(hand_data: Dictionary) -> bool:
 
 func _is_joint_position_valid(tracker: XRHandTracker, joint_id: int) -> bool:
     return XRHandTrackerResolver.joint_position_valid(tracker, joint_id)
+
+func _joint_pose_looks_stale(hand_data: Dictionary, joint_positions: Dictionary, joint_valid: Dictionary) -> bool:
+    if stale_joint_pose_max_distance <= 0.0:
+        return false
+
+    var fallback_path: NodePath = hand_data["fallback_pose_path"]
+    if fallback_path.is_empty():
+        return false
+
+    var fallback_node := get_node_or_null(fallback_path) as Node3D
+    if fallback_node == null:
+        return false
+
+    var controller := fallback_node as XRController3D
+    if controller != null and (not controller.get_is_active() or not controller.get_has_tracking_data()):
+        return false
+
+    var anchor = _joint_anchor_position(joint_positions, joint_valid)
+    if anchor == null:
+        return false
+
+    var fallback_pose := global_transform.affine_inverse() * fallback_node.global_transform
+    return (anchor as Vector3).distance_to(fallback_pose.origin) > stale_joint_pose_max_distance
+
+func _joint_anchor_position(joint_positions: Dictionary, joint_valid: Dictionary):
+    var palm := XRHandTracker.HAND_JOINT_PALM
+    if bool(joint_valid.get(palm, false)):
+        return joint_positions[palm]
+
+    var wrist := XRHandTracker.HAND_JOINT_WRIST
+    if bool(joint_valid.get(wrist, false)):
+        return joint_positions[wrist]
+
+    var index_tip := XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP
+    if bool(joint_valid.get(index_tip, false)):
+        return joint_positions[index_tip]
+
+    return null
 
 func _update_fallback_hand(hand_data: Dictionary, reason: String) -> bool:
     var hand_name: String = hand_data["label"]
