@@ -8,6 +8,7 @@ extends Node3D
 @export var joint_radius_max := 0.026
 @export var bone_radius := 0.006
 @export var pinch_threshold := 0.035
+@export var show_tracking_diagnostics := true
 
 const TRACKER_LEFT := &"/user/hand_tracker/left"
 const TRACKER_RIGHT := &"/user/hand_tracker/right"
@@ -75,6 +76,7 @@ var _status_label: Label
 var _joint_mesh: SphereMesh
 var _bone_mesh: CylinderMesh
 var _hands := {}
+var _last_hand_debug := {}
 var _last_tracking_summary := ""
 var _status_elapsed := 0.0
 
@@ -100,6 +102,11 @@ func _process(delta: float) -> void:
     if _status_elapsed >= 0.5:
         _status_elapsed = 0.0
         var summary := ", ".join(active_hands) if not active_hands.is_empty() else "none"
+        if show_tracking_diagnostics:
+            var details: Array[String] = []
+            for hand_name in _hands.keys():
+                details.append("%s %s" % [hand_name.substr(0, 1), _last_hand_debug.get(hand_name, "pending")])
+            summary = "%s | %s" % [summary, " | ".join(details)]
         if summary != _last_tracking_summary:
             _last_tracking_summary = summary
             _set_status("Hand tracking: %s." % summary)
@@ -148,6 +155,7 @@ func _create_hand(hand_name: String, tracker_path: StringName, color: Color) -> 
         bone_nodes.append(bone_node)
 
     _hands[hand_name] = {
+        "label": hand_name,
         "root": root,
         "tracker_path": tracker_path,
         "material": material,
@@ -155,6 +163,7 @@ func _create_hand(hand_name: String, tracker_path: StringName, color: Color) -> 
         "joints": joint_nodes,
         "bones": bone_nodes,
     }
+    _last_hand_debug[hand_name] = "pending"
 
 func _create_material(color: Color) -> StandardMaterial3D:
     var material := StandardMaterial3D.new()
@@ -166,9 +175,11 @@ func _create_material(color: Color) -> StandardMaterial3D:
     return material
 
 func _update_hand(hand_data: Dictionary) -> bool:
+    var hand_name: String = hand_data["label"]
     var root := hand_data["root"] as Node3D
     var tracker := XRServer.get_tracker(hand_data["tracker_path"]) as XRHandTracker
     if tracker == null:
+        _last_hand_debug[hand_name] = "no tracker"
         root.visible = false
         return false
 
@@ -192,9 +203,11 @@ func _update_hand(hand_data: Dictionary) -> bool:
         joint_node.transform = Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * radius), joint_transform.origin)
 
     if valid_joint_count == 0:
+        _last_hand_debug[hand_name] = "0 joints tracking=%s" % str(tracker.has_tracking_data)
         root.visible = false
         return false
 
+    _last_hand_debug[hand_name] = "%d joints tracking=%s" % [valid_joint_count, str(tracker.has_tracking_data)]
     root.visible = true
     _update_bones(hand_data["bones"], joint_positions, joint_valid)
     _update_pinch_materials(hand_data, joint_positions, joint_valid)

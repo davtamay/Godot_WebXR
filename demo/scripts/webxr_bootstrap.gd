@@ -8,6 +8,7 @@ extends Node3D
 @export var status_label_path: NodePath
 @export var inspect_object_path: NodePath
 @export var enable_legacy_select_visuals := false
+@export var require_hand_tracking := true
 
 var _webxr: XRInterface
 var _vr_supported := false
@@ -83,8 +84,8 @@ func _on_enter_xr_pressed() -> void:
 
     _webxr.session_mode = "immersive-vr"
     _webxr.requested_reference_space_types = "local"
-    _webxr.required_features = "layers"
-    _webxr.optional_features = "local-floor, bounded-floor, hand-tracking"
+    _webxr.required_features = "layers, hand-tracking" if require_hand_tracking else "layers"
+    _webxr.optional_features = "local-floor, bounded-floor" if require_hand_tracking else "local-floor, bounded-floor, hand-tracking"
 
     _set_status("Requesting WebXR session…")
     if not _webxr.initialize():
