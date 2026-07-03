@@ -10,8 +10,8 @@ extends Node3D
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
 
-const TRACKER_LEFT := &"/user/hand_tracker/left"
-const TRACKER_RIGHT := &"/user/hand_tracker/right"
+const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
+const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
 
 const HAND_JOINTS := [
     XRHandTracker.HAND_JOINT_PALM,
@@ -70,8 +70,6 @@ const BONE_PAIRS := [
     [XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_DISTAL, XRHandTracker.HAND_JOINT_PINKY_FINGER_TIP],
 ]
 
-const POSITION_VALID_FLAGS := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
-
 var _status_label: Label
 var _joint_mesh: SphereMesh
 var _bone_mesh: CylinderMesh
@@ -83,8 +81,8 @@ var _status_elapsed := 0.0
 func _ready() -> void:
     _status_label = get_node_or_null(status_label_path) as Label
     _create_shared_meshes()
-    _create_hand("Left", TRACKER_LEFT, Color(0.15, 0.72, 1.0, 1.0))
-    _create_hand("Right", TRACKER_RIGHT, Color(1.0, 0.48, 0.18, 1.0))
+    _create_hand("Left", XRInputAdapter.Hand.LEFT, Color(0.15, 0.72, 1.0, 1.0))
+    _create_hand("Right", XRInputAdapter.Hand.RIGHT, Color(1.0, 0.48, 0.18, 1.0))
 
 func _process(delta: float) -> void:
     _status_elapsed += delta
@@ -125,7 +123,7 @@ func _create_shared_meshes() -> void:
     _bone_mesh.radial_segments = 8
     _bone_mesh.rings = 1
 
-func _create_hand(hand_name: String, tracker_path: StringName, color: Color) -> void:
+func _create_hand(hand_name: String, hand_id: int, color: Color) -> void:
     var root := Node3D.new()
     root.name = "%sHandTracking" % hand_name
     root.visible = false
@@ -157,7 +155,7 @@ func _create_hand(hand_name: String, tracker_path: StringName, color: Color) -> 
     _hands[hand_name] = {
         "label": hand_name,
         "root": root,
-        "tracker_path": tracker_path,
+        "hand": hand_id,
         "material": material,
         "pinch_material": pinch_material,
         "joints": joint_nodes,
@@ -176,8 +174,9 @@ func _create_material(color: Color) -> StandardMaterial3D:
 
 func _update_hand(hand_data: Dictionary) -> bool:
     var hand_name: String = hand_data["label"]
+    var hand_id: int = hand_data["hand"]
     var root := hand_data["root"] as Node3D
-    var tracker := XRServer.get_tracker(hand_data["tracker_path"]) as XRHandTracker
+    var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
         _last_hand_debug[hand_name] = "no tracker"
         root.visible = false
@@ -203,18 +202,20 @@ func _update_hand(hand_data: Dictionary) -> bool:
         joint_node.transform = Transform3D(Basis.IDENTITY.scaled(Vector3.ONE * radius), joint_transform.origin)
 
     if valid_joint_count == 0:
-        _last_hand_debug[hand_name] = "0 joints tracking=%s" % str(tracker.has_tracking_data)
+        var empty_source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
+        _last_hand_debug[hand_name] = "0 joints tracking=%s src=%s" % [str(tracker.has_tracking_data), empty_source]
         root.visible = false
         return false
 
-    _last_hand_debug[hand_name] = "%d joints tracking=%s" % [valid_joint_count, str(tracker.has_tracking_data)]
+    var source := XRHandTrackerResolver.tracker_debug_name(hand_id, tracker)
+    _last_hand_debug[hand_name] = "%d joints tracking=%s src=%s" % [valid_joint_count, str(tracker.has_tracking_data), source]
     root.visible = true
     _update_bones(hand_data["bones"], joint_positions, joint_valid)
     _update_pinch_materials(hand_data, joint_positions, joint_valid)
     return true
 
 func _is_joint_position_valid(tracker: XRHandTracker, joint_id: int) -> bool:
-    return (tracker.get_hand_joint_flags(joint_id) & POSITION_VALID_FLAGS) != 0
+    return XRHandTrackerResolver.joint_position_valid(tracker, joint_id)
 
 func _update_bones(bone_nodes: Array[MeshInstance3D], joint_positions: Dictionary, joint_valid: Dictionary) -> void:
     for bone_index in range(BONE_PAIRS.size()):

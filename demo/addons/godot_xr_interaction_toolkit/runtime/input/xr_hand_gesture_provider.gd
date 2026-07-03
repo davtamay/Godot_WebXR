@@ -8,13 +8,12 @@ extends RefCounted
 ## normalize(cursor - palm), falling back to wrist if palm is invalid; origin =
 ## cursor nudged forward 2.5 cm.
 
-const POSITION_VALID_FLAGS := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
+const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
+
 const RAY_ORIGIN_FORWARD_OFFSET := 0.025
 
 static func joint_position_valid(tracker: XRHandTracker, joint: int) -> bool:
-    if tracker == null:
-        return false
-    return (tracker.get_hand_joint_flags(joint) & POSITION_VALID_FLAGS) != 0
+    return XRHandTrackerResolver.joint_position_valid(tracker, joint)
 
 static func get_hand_ray_pose(tracker: XRHandTracker) -> Dictionary:
     if tracker == null:

@@ -2,6 +2,7 @@ class_name WebXRInputAdapter
 extends "res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd"
 
 const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_gesture_provider.gd")
+const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
 
 ## WebXR input source: interface-level selectstart/selectend signals resolved
 ## to handedness, controller aim poses from XRController3D, and the validated
@@ -20,11 +21,6 @@ const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolki
 ## While selected, the cached pre-select ray translates with the palm but keeps
 ## its aim direction stable until release.
 @export var stabilize_hand_select := true
-
-const TRACKER_PATHS := {
-    Hand.LEFT: &"/user/hand_tracker/left",
-    Hand.RIGHT: &"/user/hand_tracker/right",
-}
 
 var _webxr
 var _origin: Node3D
@@ -168,7 +164,7 @@ func _hand_aim_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id) or _origin == null:
         return {}
 
-    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     var local_pose := XRHandGestureProvider.get_hand_ray_pose(tracker)
     if local_pose.is_empty():
         return {}
@@ -185,7 +181,7 @@ func _hand_grip_pose(hand_id: int) -> Dictionary:
     if not _valid_hand(hand_id) or _origin == null:
         return {}
 
-    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
         return {}
 
@@ -251,7 +247,7 @@ func _hand_anchor_global(hand_id: int):
     if not _valid_hand(hand_id) or _origin == null:
         return null
 
-    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
         return null
 
@@ -292,7 +288,7 @@ func _pinch_distance(hand_id: int) -> float:
     if not _valid_hand(hand_id):
         return -1.0
 
-    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    var tracker := XRHandTrackerResolver.get_tracker(hand_id)
     if tracker == null:
         return -1.0
 
