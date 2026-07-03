@@ -27,3 +27,6 @@ Fable must fill this with exact links and file paths.
 | Desktop WebXR support | Not tested | Browser/device capability probing exists in the custom shell. |
 | Headset XR session | Not tested | Must be validated from an HTTPS-hosted build on a WebXR-capable headset/browser. |
 | XR select input | Not tested on device | `webxr_bootstrap.gd` now connects native WebXR `select`, `selectstart`, and `selectend` signals when available; a real select increments a counter, updates `StatusLabel`, and toggles `InspectObject` scale/material. |
+| Addon headless tests | Pass | `Godot_v4.7-stable_win64_console.exe --headless --path demo -s res://tests/run_tests.gd` - 65 checks, 0 failures (layers, arbitration, hand-ray geometry, physics raycast integration, grab math, visuals). |
+| Web export (4.7) | Pass | `Godot_v4.7-stable_win64_console.exe --headless --path demo --export-release Web build/web47/index.html` exited 0; `index.html`, `index.js`, `index.pck`, and `index.wasm` present in `demo/build/web47/`. |
+| Quest 3 acceptance | PENDING MANUAL | Checklist in Task 10 Step 5 of `docs/superpowers/plans/2026-07-02-xr-interaction-toolkit-addon.md`. |
