@@ -15,6 +15,12 @@ signal select_ended(hand: int)
 func get_aim_pose(_hand: int) -> Dictionary:
     return {}
 
+## Returns {origin: Vector3, basis: Basis} in GLOBAL space for near/direct
+## grabbing. Default falls back to aim so simple adapters only implement one
+## pose path.
+func get_grip_pose(hand: int) -> Dictionary:
+    return get_aim_pose(hand)
+
 func is_hand_active(hand: int) -> bool:
     return not get_aim_pose(hand).is_empty()
 

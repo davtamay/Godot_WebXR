@@ -16,10 +16,13 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
    - Add a `WebXRInputAdapter` as a plain `Node`; point `xr_origin_path` at your
      `XROrigin3D` and the controller paths at your two `XRController3D` nodes
      with tracker `left_hand`/`right_hand` and pose `aim`.
-   - Under `XROrigin3D`, add one `XRRayInteractor` (`Node3D`) per hand; set
-     `hand` (`0` = left, `1` = right) and `input_adapter_path` at the adapter.
-     Add `XRInteractorLineVisual` and `XRReticleVisual` (`MeshInstance3D`)
-     children for the beam and cursor.
+   - Under `XROrigin3D`, add one `XRDirectInteractor` (`Node3D`) per hand for
+     near hand grabs, then one `XRRayInteractor` (`Node3D`) per hand for far
+     grabs; set `hand` (`0` = left, `1` = right) and `input_adapter_path` at
+     the adapter. Put direct interactors before rays in the scene tree so a
+     nearby object gets first chance on pinch. Add `XRInteractorLineVisual` and
+     `XRReticleVisual` (`MeshInstance3D`) children to ray interactors for the
+     beam and cursor.
    - For desktop/mobile preview, add one `XRScreenRayInteractor` (`Node3D`) and
      point `camera_path` at the scene camera. It turns mouse hover/click and
      touch press/drag into the same hover/select pipeline as XR rays.
@@ -35,8 +38,9 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
 
 Interaction layers: `interaction_layers` bitmasks on interactor and interactable
 must share a bit (default: both `1`). They are independent of physics layers;
-`XRRayInteractor.collision_mask` and `XRScreenRayInteractor.collision_mask`
-control what each ray can physically hit.
+`XRDirectInteractor.collision_mask`, `XRRayInteractor.collision_mask`, and
+`XRScreenRayInteractor.collision_mask` control what each interactor can
+physically hit.
 
 ## Platform Notes
 

@@ -86,6 +86,13 @@ func get_aim_pose(hand_id: int) -> Dictionary:
     var controller_pose := _controller_aim_pose(hand_id)
     return controller_pose if not controller_pose.is_empty() else hand_pose
 
+func get_grip_pose(hand_id: int) -> Dictionary:
+    if not _valid_hand(hand_id):
+        return {}
+
+    var hand_pose := _hand_grip_pose(hand_id)
+    return hand_pose if not hand_pose.is_empty() else _controller_aim_pose(hand_id)
+
 func get_source_kind(hand_id: int) -> int:
     if not _valid_hand(hand_id):
         return SourceKind.NONE
@@ -172,6 +179,26 @@ func _hand_aim_pose(hand_id: int) -> Dictionary:
         "origin": origin_xf * (local_pose["origin"] as Vector3),
         "direction": direction,
         "basis": XRHandGestureProvider.basis_from_forward(direction),
+    }
+
+func _hand_grip_pose(hand_id: int) -> Dictionary:
+    if not _valid_hand(hand_id) or _origin == null:
+        return {}
+
+    var tracker := XRServer.get_tracker(TRACKER_PATHS[hand_id]) as XRHandTracker
+    if tracker == null:
+        return {}
+
+    var grip_joint := XRHandTracker.HAND_JOINT_PALM
+    if not XRHandGestureProvider.joint_position_valid(tracker, grip_joint):
+        grip_joint = XRHandTracker.HAND_JOINT_WRIST
+    if not XRHandGestureProvider.joint_position_valid(tracker, grip_joint):
+        return {}
+
+    var grip_transform := _origin.global_transform * tracker.get_hand_joint_transform(grip_joint)
+    return {
+        "origin": grip_transform.origin,
+        "basis": grip_transform.basis.orthonormalized(),
     }
 
 func _stabilized_hand_pose(hand_id: int, raw_pose: Dictionary) -> Dictionary:

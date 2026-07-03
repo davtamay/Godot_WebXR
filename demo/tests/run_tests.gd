@@ -10,6 +10,7 @@ const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolki
 const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd")
 const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
+const XRDirectInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd")
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
@@ -32,6 +33,7 @@ func _run_all() -> void:
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
     _test_ray_grab_distance_clamp()
+    await _test_direct_hover_and_grab_integration()
     await _test_ray_hover_and_grab_integration()
     _test_webxr_adapter_inert_on_desktop()
     _test_hand_select_stabilization_math()
@@ -201,9 +203,13 @@ func _test_interactor_hover_and_select() -> void:
 
 class FakeAdapter extends XRInputAdapter:
     var pose := {}
+    var grip_pose := {}
 
     func get_aim_pose(_hand: int) -> Dictionary:
         return pose
+
+    func get_grip_pose(_hand: int) -> Dictionary:
+        return grip_pose if not grip_pose.is_empty() else pose
 
 class FakeInteractor extends XRBaseInteractor:
     var attach := Transform3D.IDENTITY
@@ -232,6 +238,50 @@ func _test_ray_grab_distance_clamp() -> void:
 
     interactable.free()
     ray.free()
+
+func _test_direct_hover_and_grab_integration() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    var body := StaticBody3D.new()
+    var shape := CollisionShape3D.new()
+    shape.shape = BoxShape3D.new()
+    body.add_child(shape)
+    grab.add_child(body)
+    root.add_child(grab)
+    grab.position = Vector3(0, 0, -0.1)
+
+    var adapter := FakeAdapter.new()
+    adapter.grip_pose = {"origin": Vector3.ZERO, "basis": Basis.IDENTITY}
+    root.add_child(adapter)
+
+    var direct := XRDirectInteractor.new()
+    direct.hover_radius = 0.35
+    root.add_child(direct)
+    direct.call("set_input_adapter", adapter)
+    direct.set("hand", XRInputAdapter.Hand.LEFT)
+
+    await physics_frame
+    await physics_frame
+
+    check(direct.get_hovered() == grab, "direct interactor hovers a nearby object")
+    adapter.select_started.emit(XRInputAdapter.Hand.LEFT)
+    check(direct.get_selected() == grab, "direct interactor selects the nearby object")
+
+    adapter.grip_pose = {"origin": Vector3(0, 0.25, 0), "basis": Basis.IDENTITY}
+    await physics_frame
+    await physics_frame
+    check(direct.get_attach_pose().origin.is_equal_approx(Vector3(0, 0.25, 0)), "direct attach pose follows the hand grip")
+    check(grab.global_position.is_equal_approx(Vector3(0, 0.25, -0.1)), "direct-grabbed object follows the hand with its grab offset")
+
+    adapter.select_ended.emit(XRInputAdapter.Hand.LEFT)
+    check(direct.get_selected() == null, "direct interactor releases selection")
+
+    direct.free()
+    adapter.free()
+    grab.free()
+    manager.free()
 
 func _test_ray_hover_and_grab_integration() -> void:
     var manager := XRInteractionManager.new()
