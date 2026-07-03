@@ -79,6 +79,13 @@ Maintenance areas:
 - internal documentation and onboarding
 - performance budget enforcement
 - support for multiple deployment targets and hosting constraints
+- raw WebXR browser bridge (added 2026-07-03): the custom shell patches
+  `navigator.xr.requestSession`/`requestAnimationFrame` and feeds raw hand
+  joints + depth data to GDScript via JavaScriptBridge, because stock
+  `XRHandTracker` joints arrive late on Quest Browser. This ties us to WebXR
+  browser API details (joint names, session semantics) and must be retested
+  per browser/Godot release; the stock path remains as fallback so the bridge
+  is deletable if a future Godot closes the gap (see DECISION_LOG 2026-07-03)
 
 ## What Unity still gives us
 
