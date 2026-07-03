@@ -39,6 +39,7 @@ func _run_all() -> void:
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
     _test_ray_grab_distance_clamp()
+    _test_ray_motion_distance_manipulation()
     await _test_direct_hover_and_grab_integration()
     await _test_ray_hover_and_grab_integration()
     _test_ray_suppressed_by_direct_interactor()
@@ -351,6 +352,38 @@ func _test_ray_grab_distance_clamp() -> void:
 
     interactable.free()
     ray.free()
+
+func _test_ray_motion_distance_manipulation() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var adapter := FakeAdapter.new()
+    adapter.pose = {"origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    root.add_child(adapter)
+
+    var ray := XRRayInteractor.new()
+    root.add_child(ray)
+    ray.call("set_input_adapter", adapter)
+    ray._update_ray(0.016)
+
+    var interactable := XRBaseInteractable.new()
+    ray._hover_distance = 3.0
+    ray._notify_select_granted(interactable)
+    check(is_equal_approx(ray._grab_distance, 3.0), "motion distance manipulation starts at hover distance")
+
+    adapter.pose = {"origin": Vector3(0, 0, 0.5), "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    ray._update_ray(1.0)
+    check(is_equal_approx(ray._grab_distance, 2.5), "pulling the ray hand back brings the held object closer")
+
+    adapter.pose = {"origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "basis": Basis.IDENTITY}
+    ray._update_ray(1.0)
+    check(is_equal_approx(ray._grab_distance, 3.0), "pushing the ray hand forward moves the held object away")
+
+    ray._notify_select_released(interactable)
+    interactable.free()
+    ray.free()
+    adapter.free()
+    manager.free()
 
 func _test_direct_hover_and_grab_integration() -> void:
     var manager := XRInteractionManager.new()

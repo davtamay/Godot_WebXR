@@ -1,4 +1,4 @@
-[gd_scene load_steps=45 format=3]
+[gd_scene load_steps=46 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://scripts/webxr_bootstrap.gd" id="2_webxr"]
@@ -65,6 +65,11 @@ roughness = 0.6
 [sub_resource type="StandardMaterial3D" id="Material_marker"]
 albedo_color = Color(0.92, 0.74, 0.25, 1)
 roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Material_physics"]
+albedo_color = Color(0.38, 0.76, 0.35, 1)
+metallic = 0.05
+roughness = 0.48
 
 [sub_resource type="StandardMaterial3D" id="Material_dark"]
 albedo_color = Color(0.06, 0.07, 0.08, 1)
@@ -259,6 +264,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.55, 0.07, -1.45)
 mesh = SubResource("BoxMesh_platform")
 surface_material_override/0 = SubResource("Material_platform")
 
+[node name="PhysicsPullPedestal" type="MeshInstance3D" parent="SampleEnvironment"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.07, -1.25)
+mesh = SubResource("BoxMesh_platform")
+surface_material_override/0 = SubResource("Material_platform")
+
 [node name="InstantLabel" type="Label3D" parent="SampleEnvironment"]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -2.25, 0.45, -2.22)
 text = "INSTANT GRAB"
@@ -282,6 +292,11 @@ font_size = 28
 [node name="LayerLabel" type="Label3D" parent="SampleEnvironment"]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, 2.55, 0.45, -1.92)
 text = "RIGHT HAND LAYER"
+font_size = 28
+
+[node name="PhysicsPullLabel" type="Label3D" parent="SampleEnvironment"]
+transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -3.35, 0.45, -1.72)
+text = "PHYSICS PULL"
 font_size = 28
 
 [node name="HoverLabel" type="Label3D" parent="SampleEnvironment"]
@@ -372,6 +387,22 @@ surface_material_override/0 = SubResource("Material_filtered")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LayerTwoGrab/InteractableBody"]
 shape = SubResource("BoxShape_cube")
+
+[node name="PhysicsPullGrab" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.62, -1.25)
+mass = 0.65
+gravity_scale = 0.0
+script = ExtResource("8_grab")
+movement_type = 2
+track_rotation = true
+max_tracked_speed = 10.0
+
+[node name="Mesh" type="MeshInstance3D" parent="PhysicsPullGrab"]
+mesh = SubResource("SphereMesh_grab")
+surface_material_override/0 = SubResource("Material_physics")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PhysicsPullGrab"]
+shape = SubResource("SphereShape_grab")
 
 [node name="HoverTarget" type="Node3D" parent="."]
 transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, 2.55, 1.25, -3.05)
@@ -560,6 +591,13 @@ interactable_path = NodePath("../LayerTwoGrab")
 mesh_path = NodePath("../LayerTwoGrab/Mesh")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Layer Filtered Cube"
+
+[node name="DemoAffordancePhysicsPull" type="Node" parent="."]
+script = ExtResource("11_affordance")
+interactable_path = NodePath("../PhysicsPullGrab")
+mesh_path = NodePath("../PhysicsPullGrab/Mesh")
+status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
+display_name = "Physics Pull Sphere"
 
 [node name="DemoAffordanceHover" type="Node" parent="."]
 script = ExtResource("11_affordance")

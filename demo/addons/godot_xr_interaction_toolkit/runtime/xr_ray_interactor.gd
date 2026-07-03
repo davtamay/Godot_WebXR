@@ -11,6 +11,17 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 @export var collide_with_areas := true
 @export_range(0.0, 20.0, 0.01, "or_greater") var min_grab_distance := 0.25
 
+@export_group("Distance Manipulation")
+## While far-grabbing, hand motion along the ray changes the held distance.
+## Pulling the hand back along the ray brings the object closer; pushing forward
+## moves it away. This approximates XR Interaction Toolkit-style attach
+## distance manipulation for hand rays.
+@export var enable_motion_distance_manipulation := true
+@export_range(0.0, 4.0, 0.01, "or_greater") var distance_motion_scale := 1.0
+@export_range(0.0, 0.2, 0.001, "or_greater") var distance_motion_deadzone := 0.006
+@export var allow_push_distance_manipulation := true
+@export_range(0.0, 20.0, 0.1, "or_greater") var max_distance_change_per_second := 4.0
+
 @export_group("Suppression")
 ## Optional linked near/direct interactor. When it is active, this far ray is
 ## suppressed so one hand does not show or select with near and far at once.
@@ -23,13 +34,16 @@ var _grab_distance := 0.0
 var _hover_distance := 0.0
 var _attach_pose := Transform3D.IDENTITY
 var _suppress_interactor: Node
+var _last_ray_origin := Vector3.ZERO
+var _last_ray_direction := Vector3.FORWARD
+var _has_last_ray_pose := false
 
 func _ready() -> void:
     super()
     _resolve_suppression_interactor()
 
-func _physics_process(_delta: float) -> void:
-    _update_ray()
+func _physics_process(delta: float) -> void:
+    _update_ray(delta)
 
 ## {valid: bool} when inactive, else {valid: true, origin, direction, end,
 ## hit, hovered}. All vectors are in global space.
@@ -39,10 +53,11 @@ func get_ray_state() -> Dictionary:
 func get_attach_pose() -> Transform3D:
     return _attach_pose
 
-func _update_ray() -> void:
+func _update_ray(delta := 0.0) -> void:
     if _selected == null and _is_suppressed_by_linked_interactor():
         _ray_state = {"valid": false, "suppressed": true}
         _set_hovered(null)
+        _has_last_ray_pose = false
         return
 
     var pose: Dictionary = _adapter.get_aim_pose(hand) if _adapter else {}
@@ -50,6 +65,7 @@ func _update_ray() -> void:
         _ray_state = {"valid": false}
         if _selected == null:
             _set_hovered(null)
+            _has_last_ray_pose = false
         return
 
     var origin: Vector3 = pose["origin"]
@@ -72,7 +88,11 @@ func _update_ray() -> void:
         _set_hovered(hovered)
         _attach_pose = Transform3D(pose_basis, end)
     else:
+        _apply_motion_distance_manipulation(origin, direction, delta)
         _attach_pose = Transform3D(pose_basis, origin + direction * _grab_distance)
+        end = _attach_pose.origin
+        hit_anything = true
+        hovered = _selected
 
     _ray_state = {
         "valid": true,
@@ -81,7 +101,11 @@ func _update_ray() -> void:
         "end": end,
         "hit": hit_anything,
         "hovered": hovered,
+        "grab_distance": _grab_distance,
     }
+    _last_ray_origin = origin
+    _last_ray_direction = direction
+    _has_last_ray_pose = true
 
 func _intersect(origin: Vector3, direction: Vector3) -> Dictionary:
     var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * max_distance)
@@ -92,7 +116,37 @@ func _intersect(origin: Vector3, direction: Vector3) -> Dictionary:
 
 func _notify_select_granted(interactable) -> void:
     _grab_distance = clampf(_hover_distance, min_grab_distance, max_distance)
+    _seed_last_ray_pose_from_state()
     super(interactable)
+
+func _notify_select_released(interactable) -> void:
+    super(interactable)
+    _seed_last_ray_pose_from_state()
+
+func _apply_motion_distance_manipulation(origin: Vector3, direction: Vector3, delta: float) -> void:
+    if not enable_motion_distance_manipulation or not _has_last_ray_pose:
+        return
+
+    var movement := origin - _last_ray_origin
+    var distance_delta := movement.dot(_last_ray_direction.normalized()) * distance_motion_scale
+    if absf(distance_delta) < distance_motion_deadzone:
+        return
+    if distance_delta > 0.0 and not allow_push_distance_manipulation:
+        return
+
+    if delta > 0.0 and max_distance_change_per_second > 0.0:
+        var max_step := max_distance_change_per_second * delta
+        distance_delta = clampf(distance_delta, -max_step, max_step)
+
+    _grab_distance = clampf(_grab_distance + distance_delta, min_grab_distance, max_distance)
+
+func _seed_last_ray_pose_from_state() -> void:
+    if not _ray_state.get("valid", false):
+        _has_last_ray_pose = false
+        return
+    _last_ray_origin = _ray_state["origin"]
+    _last_ray_direction = (_ray_state["direction"] as Vector3).normalized()
+    _has_last_ray_pose = true
 
 func _resolve_suppression_interactor() -> void:
     _suppress_interactor = null
