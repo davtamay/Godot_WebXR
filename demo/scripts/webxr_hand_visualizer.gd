@@ -10,9 +10,10 @@ extends Node3D
 @export var pinch_threshold := 0.035
 @export var show_tracking_diagnostics := true
 @export var render_fallback_hand_mesh := false
+@export var render_fallback_for_unproven_joints := true
 @export var stale_joint_pose_max_distance := 0.0
 @export var startup_mesh_warmup_seconds := 1.5
-@export var startup_live_anchor_delta := 0.0
+@export var startup_live_anchor_delta := 0.015
 @export var left_fallback_pose_path: NodePath
 @export var right_fallback_pose_path: NodePath
 @export var world_status_label_path: NodePath
@@ -242,6 +243,9 @@ func _update_hand(hand_data: Dictionary) -> bool:
     var anchor = _joint_anchor_position(joint_positions, joint_valid)
     _update_hand_startup_state(hand_data, anchor)
     if _hand_waiting_for_startup(hand_data):
+        if _xr_elapsed >= startup_mesh_warmup_seconds and render_fallback_for_unproven_joints:
+            if _update_fallback_hand(hand_data, "%d joints unproven src=%s" % [valid_joint_count, source]):
+                return true
         _last_hand_debug[hand_name] = "%d joints warming %.2fs live=%.3f src=%s" % [
             valid_joint_count,
             maxf(startup_mesh_warmup_seconds - _xr_elapsed, 0.0),
