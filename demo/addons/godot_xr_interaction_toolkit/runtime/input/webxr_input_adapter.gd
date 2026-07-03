@@ -11,9 +11,10 @@ const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolki
 @export var xr_origin_path: NodePath
 @export var left_controller_path: NodePath
 @export var right_controller_path: NodePath
-## true (prototype-validated on Quest 3): prefer the computed hand ray over the
-## controller aim pose when both report tracking. false: controller aim wins.
-@export var prefer_hand_ray := true
+## false: prefer the runtime target ray from XRController3D aim pose. On Quest
+## hand tracking this is closer to the Meta OS cursor behavior. true: prefer
+## the fallback ray computed from hand joints.
+@export var prefer_hand_ray := false
 @export var synthesize_pinch_select := true
 @export var pinch_start_distance := 0.035
 @export var pinch_end_distance := 0.055

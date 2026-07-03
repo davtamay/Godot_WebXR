@@ -44,6 +44,11 @@ must share a bit (default: both `1`). They are independent of physics layers;
 `XRScreenRayInteractor.collision_mask` control what each interactor can
 physically hit.
 
+`WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
+runtime `XRController3D` aim pose first. On Quest hand tracking this better
+matches the stable Meta OS cursor. The joint-derived hand ray remains available
+as a fallback or experiment by setting `prefer_hand_ray = true`.
+
 ## Platform Notes
 
 - Quest 3 / Quest Browser: works in the feasibility spike path; this addon

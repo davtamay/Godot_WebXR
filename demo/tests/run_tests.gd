@@ -390,6 +390,7 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT).is_empty(), "no aim pose for either hand")
     check(adapter.get_source_kind(XRInputAdapter.Hand.LEFT) == XRInputAdapter.SourceKind.NONE, "source kind NONE on desktop")
     check(not adapter.is_hand_active(XRInputAdapter.Hand.LEFT), "hand inactive on desktop")
+    check(not adapter.prefer_hand_ray, "runtime aim pose is preferred over joint hand ray by default")
     check(not adapter.stabilize_hand_select, "hand ray select stabilization defaults off")
     adapter.free()
 
