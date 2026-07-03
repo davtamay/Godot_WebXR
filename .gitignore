@@ -1,9 +1,40 @@
+# Godot editor/import cache.
 .godot/
-demo/.godot/
-demo/build/
+**/.godot/
+.import/
+**/.import/
+
+# Godot generated/exported artifacts.
+build/
+**/build/
+exports/
+**/exports/
+*.tmp
+*.translation
+
+# Generated import metadata used by this prototype. Remove these rules if a
+# future production project needs committed import remaps for asset fidelity.
 *.uid
 *.import
+
+# C#/.NET artifacts if the project enables Godot Mono later.
+.mono/
+**/.mono/
+bin/
+obj/
+
+# Logs and local runtime captures.
+*.log
+logs/
+**/logs/
 
 # Generated probe and benchmark output. Keep source docs/research notes tracked.
 research/probe_results/
 research/performance_results/
+
+# Local editor/OS files.
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
