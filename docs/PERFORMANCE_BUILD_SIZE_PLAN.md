@@ -105,6 +105,77 @@ Measure both raw and compressed output:
    - Disable unused modules/features if feasible.
    - Measure payload reduction and maintenance cost.
 
+## Godot Web Export Optimizer Track
+
+This should be split into two deliverables:
+
+1. **Project/addon tooling** for export hygiene, content manifests,
+   compression reports, chunk manifests, and CI checks. This belongs in a
+   reusable Godot editor plugin/addon so any project can adopt it without
+   rebuilding Godot.
+2. **Custom web export templates** for engine-level stripping. This is the
+   Godot equivalent to the deepest Unity engine/code stripping path, but it is
+   not just an addon: it requires building and maintaining custom templates for
+   the exact Godot version and web feature set.
+
+### Phase 0: Immediate Export Hygiene
+
+- Use selected-scene/resource export filters instead of `all_resources`.
+- Exclude `tests/*`, previous `build/*` outputs, and browser probe pages.
+- Keep probe pages and benchmark overlays outside the runtime pack unless a
+  specific build target requests them.
+- Record raw `.wasm`, `.js`, `.pck`, image, audio, gzip, and Brotli sizes for
+  every web export.
+
+Current spike result after switching the Web preset to selected-scene export:
+
+| Build | PCK size | Notes |
+|---|---:|---|
+| Previous broad export | 314,852 bytes | Included non-runtime project files. |
+| Selected `res://scenes/Main.tscn` export | 84,560 bytes | Tests, probe pages, and old build names absent from the PCK string scan. |
+
+The `.wasm` remains the stock engine/template payload; reducing it belongs to
+the custom-template phase, not content filtering.
+
+### Phase 1: Smart Export Manifest Plugin
+
+Create an editor plugin command that:
+
+- Starts from configured entry scenes.
+- Traverses scene dependencies, script preloads, exported `Resource` fields,
+  custom shell references, and declared runtime-load manifests.
+- Writes `export_presets.cfg` selected-scene/selected-resource entries.
+- Fails CI if `tests/`, `build/`, probe pages, editor-only tools, or old export
+  artifacts would enter a web release pack.
+- Generates a size report before and after compression.
+
+This mirrors Unity's practical workflow advantage: make the optimized path the
+default path, not a checklist everyone remembers manually.
+
+### Phase 2: Streamed Content Chunks
+
+For larger environments, keep the startup PCK small:
+
+- Put only bootstrap, XR interaction core, shell UI, and the first space in the
+  main export.
+- Put future environments, tutorial rooms, heavy assets, audio, and optional
+  samples into separately hosted packs or scene chunks.
+- Load chunks explicitly after the first interactive frame and cache them via
+  browser/CDN semantics.
+
+### Phase 3: Custom Web Export Templates
+
+Build custom Godot web templates only after Phase 0-2 measurements show the
+stock `.wasm` is the dominant problem. Track:
+
+- Godot source revision and build command.
+- Disabled modules/features.
+- Required web features: WebXR, WebGL2, multiview support, audio, fetch,
+  threads if enabled.
+- Compatibility matrix across Quest Browser, desktop Chrome/Firefox, and any
+  Android XR browser under evaluation.
+- Template rebuild cost whenever Godot changes.
+
 ### Unity variants
 
 1. **Unity WebGL2 release build**
