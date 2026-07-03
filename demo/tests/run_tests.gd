@@ -49,6 +49,8 @@ func _run_all() -> void:
     _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_grab_throw_on_release()
+    _test_grab_throw_sample_window()
+    _test_grab_throw_angular_velocity()
     _test_two_hand_grab_rotate_and_scale()
     _test_grab_track_position_toggle()
     await _test_socket_interactor_auto_selects_and_snaps()
@@ -659,6 +661,64 @@ func _test_grab_throw_on_release() -> void:
     grab._notify_select_exited(interactor)
 
     check(body.linear_velocity.z < -9.0, "throw-on-release applies sampled attach velocity to rigid body")
+
+    interactor.free()
+    grab.free()
+    manager.free()
+
+func _test_grab_throw_sample_window() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    grab.target_path = NodePath("Body")
+    grab.throw_sample_frames = 2
+    root.add_child(grab)
+
+    var body := RigidBody3D.new()
+    body.name = "Body"
+    grab.add_child(body)
+
+    var interactor := FakeInteractor.new()
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    root.add_child(interactor)
+
+    grab._notify_select_entered(interactor)
+    interactor.attach.origin = Vector3(0, 0, -1.0)
+    grab._physics_process(0.1)
+    interactor.attach.origin = Vector3(0, 0, -1.2)
+    grab._physics_process(0.1)
+    grab._notify_select_exited(interactor)
+
+    check(is_equal_approx(body.linear_velocity.z, -6.0), "throw sample window averages recent linear velocity")
+
+    interactor.free()
+    grab.free()
+    manager.free()
+
+func _test_grab_throw_angular_velocity() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    grab.target_path = NodePath("Body")
+    grab.track_rotation = true
+    root.add_child(grab)
+
+    var body := RigidBody3D.new()
+    body.name = "Body"
+    grab.add_child(body)
+
+    var interactor := FakeInteractor.new()
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    root.add_child(interactor)
+
+    grab._notify_select_entered(interactor)
+    interactor.attach = Transform3D(Basis(Vector3.UP, PI * 0.5), Vector3.ZERO)
+    grab._physics_process(0.1)
+    grab._notify_select_exited(interactor)
+
+    check(body.angular_velocity.y > 10.0, "throw-on-release applies sampled angular velocity to rigid body")
 
     interactor.free()
     grab.free()

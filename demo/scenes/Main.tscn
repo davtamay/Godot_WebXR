@@ -311,7 +311,7 @@ font_size = 28
 
 [node name="PhysicsPullLabel" type="Label3D" parent="SampleEnvironment"]
 transform = Transform3D(0.965926, 0, 0.258819, 0, 1, 0, -0.258819, 0, 0.965926, -3.35, 0.45, -1.72)
-text = "PHYSICS PULL"
+text = "THROW SPIN"
 font_size = 28
 
 [node name="SocketLabel" type="Label3D" parent="SampleEnvironment"]
@@ -416,13 +416,15 @@ script = ExtResource("8_grab")
 movement_type = 2
 track_rotation = true
 max_tracked_speed = 10.0
+throw_sample_frames = 6
+max_throw_angular_speed = 22.0
 
 [node name="Mesh" type="MeshInstance3D" parent="PhysicsPullGrab"]
-mesh = SubResource("SphereMesh_grab")
+mesh = SubResource("BoxMesh_cube")
 surface_material_override/0 = SubResource("Material_physics")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PhysicsPullGrab"]
-shape = SubResource("SphereShape_grab")
+shape = SubResource("BoxShape_cube")
 
 [node name="SocketInteractor" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.34, -2.15)
@@ -626,7 +628,7 @@ script = ExtResource("11_affordance")
 interactable_path = NodePath("../PhysicsPullGrab")
 mesh_path = NodePath("../PhysicsPullGrab/Mesh")
 status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
-display_name = "Physics Pull Sphere"
+display_name = "Throw Spin Box"
 
 [node name="DemoAffordanceHover" type="Node" parent="."]
 script = ExtResource("11_affordance")

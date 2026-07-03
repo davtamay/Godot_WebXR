@@ -37,6 +37,9 @@ enum MovementType { INSTANT, KINEMATIC_SMOOTH, VELOCITY_TRACKED }
 @export var throw_on_release := true
 @export_range(0.0, 10.0, 0.01, "or_greater") var throw_velocity_scale := 1.0
 @export_range(0.0, 100.0, 0.1, "or_greater") var max_throw_speed := 14.0
+@export_range(1, 30, 1, "or_greater") var throw_sample_frames := 5
+@export_range(0.0, 10.0, 0.01, "or_greater") var throw_angular_velocity_scale := 1.0
+@export_range(0.0, 100.0, 0.1, "or_greater") var max_throw_angular_speed := 18.0
 
 @export_group("Two Hand Grab")
 ## Allows a second interactor to select the same object. The second hand rotates
@@ -56,8 +59,11 @@ var _two_hand_start_midpoint := Vector3.ZERO
 var _two_hand_start_vector := Vector3.RIGHT
 var _two_hand_start_distance := 1.0
 var _two_hand_start_transform := Transform3D.IDENTITY
-var _last_throw_origin := Vector3.ZERO
+var _last_throw_pose := Transform3D.IDENTITY
 var _throw_linear_velocity := Vector3.ZERO
+var _throw_angular_velocity := Vector3.ZERO
+var _throw_linear_samples: Array[Vector3] = []
+var _throw_angular_samples: Array[Vector3] = []
 var _has_throw_sample := false
 
 func get_target() -> Node3D:
@@ -116,7 +122,7 @@ func _physics_process(delta: float) -> void:
         if _two_hand_active:
             var desired := _compute_two_hand_transform()
             _apply_movement(target, desired, delta, true, two_hand_track_position)
-            _sample_throw_velocity(Transform3D(Basis.IDENTITY, desired.origin), delta)
+            _sample_throw_velocity(desired, delta)
         return
 
     if _grabbing == null:
@@ -125,6 +131,8 @@ func _physics_process(delta: float) -> void:
     var attach_pose := _attach_pose_for(_grabbing)
     var desired: Transform3D = attach_pose * _grab_offset
     _apply_movement(target, desired, delta, track_rotation, track_position)
+    if not track_rotation:
+        attach_pose.basis = _last_throw_pose.basis
     _sample_throw_velocity(attach_pose, delta)
 
 func _compute_grab_offset(interactor) -> Transform3D:
@@ -238,8 +246,11 @@ func _apply_movement(target: Node3D, desired: Transform3D, delta: float, apply_b
                 body.global_transform = body_transform
 
 func _reset_throw_sample(pose: Transform3D) -> void:
-    _last_throw_origin = pose.origin
+    _last_throw_pose = pose
     _throw_linear_velocity = Vector3.ZERO
+    _throw_angular_velocity = Vector3.ZERO
+    _throw_linear_samples.clear()
+    _throw_angular_samples.clear()
     _has_throw_sample = true
 
 func _sample_throw_velocity(pose: Transform3D, delta: float) -> void:
@@ -249,9 +260,13 @@ func _sample_throw_velocity(pose: Transform3D, delta: float) -> void:
         _reset_throw_sample(pose)
         return
 
-    var velocity := (pose.origin - _last_throw_origin) / maxf(delta, 0.0001)
-    _throw_linear_velocity = velocity.limit_length(max_throw_speed)
-    _last_throw_origin = pose.origin
+    var velocity := (pose.origin - _last_throw_pose.origin) / maxf(delta, 0.0001)
+    var angular_velocity := _angular_velocity_between(_last_throw_pose.basis, pose.basis, delta)
+    _push_throw_sample(_throw_linear_samples, velocity.limit_length(max_throw_speed))
+    _push_throw_sample(_throw_angular_samples, angular_velocity.limit_length(max_throw_angular_speed))
+    _throw_linear_velocity = _average_throw_samples(_throw_linear_samples).limit_length(max_throw_speed)
+    _throw_angular_velocity = _average_throw_samples(_throw_angular_samples).limit_length(max_throw_angular_speed)
+    _last_throw_pose = pose
 
 func _apply_throw_on_release() -> void:
     if not throw_on_release or not _has_throw_sample:
@@ -263,6 +278,42 @@ func _apply_throw_on_release() -> void:
 
     body.sleeping = false
     body.linear_velocity = (_throw_linear_velocity * throw_velocity_scale).limit_length(max_throw_speed)
+    body.angular_velocity = (_throw_angular_velocity * throw_angular_velocity_scale).limit_length(max_throw_angular_speed)
+
+func _push_throw_sample(samples: Array[Vector3], velocity: Vector3) -> void:
+    samples.append(velocity)
+    while samples.size() > throw_sample_frames:
+        samples.pop_front()
+
+func _average_throw_samples(samples: Array[Vector3]) -> Vector3:
+    if samples.is_empty():
+        return Vector3.ZERO
+    var total := Vector3.ZERO
+    for sample in samples:
+        total += sample
+    return total / float(samples.size())
+
+func _angular_velocity_between(from_basis: Basis, to_basis: Basis, delta: float) -> Vector3:
+    if delta <= 0.0:
+        return Vector3.ZERO
+
+    var from_rotation := from_basis.orthonormalized().get_rotation_quaternion()
+    var to_rotation := to_basis.orthonormalized().get_rotation_quaternion()
+    var delta_rotation := (to_rotation * from_rotation.inverse()).normalized()
+    if delta_rotation.w < 0.0:
+        delta_rotation = Quaternion(-delta_rotation.x, -delta_rotation.y, -delta_rotation.z, -delta_rotation.w)
+
+    var w := clampf(delta_rotation.w, -1.0, 1.0)
+    var angle := 2.0 * acos(w)
+    if angle > PI:
+        angle -= TAU
+
+    var sin_half_angle := sqrt(maxf(0.0, 1.0 - w * w))
+    if sin_half_angle < 0.0001:
+        return Vector3.ZERO
+
+    var axis := Vector3(delta_rotation.x, delta_rotation.y, delta_rotation.z) / sin_half_angle
+    return axis * (angle / delta)
 
 func _interpolate_basis(from_basis: Basis, to_basis: Basis, weight: float) -> Basis:
     var from_scale := from_basis.get_scale()

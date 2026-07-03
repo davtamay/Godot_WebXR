@@ -65,7 +65,9 @@ unchanged for objects that do not opt in.
 Throw on release: `XRGrabInteractable.throw_on_release` samples the selecting
 interactor's attach-pose velocity and applies it to a `RigidBody3D` target when
 the final interactor releases. Tune `throw_velocity_scale` and
-`max_throw_speed` per object.
+`max_throw_speed` per object. `throw_sample_frames` smooths noisy hand samples,
+and `throw_angular_velocity_scale` / `max_throw_angular_speed` control spin on
+release.
 
 `WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
 runtime `XRController3D` aim pose first. On Quest hand tracking this better
