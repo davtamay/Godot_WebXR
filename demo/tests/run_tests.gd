@@ -13,6 +13,8 @@ const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/run
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
+const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
+const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
 
 var _checks := 0
 var _failures := 0
@@ -30,6 +32,7 @@ func _run_all() -> void:
     await _test_ray_hover_and_grab_integration()
     _test_webxr_adapter_inert_on_desktop()
     _test_grab_follow()
+    _test_visuals_follow_ray_state()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -308,4 +311,35 @@ func _test_grab_follow() -> void:
 
     interactor.free()
     grab.free()
+    manager.free()
+
+func _test_visuals_follow_ray_state() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var ray := XRRayInteractor.new()
+    var line := XRInteractorLineVisual.new()
+    var reticle := XRReticleVisual.new()
+    ray.add_child(line)
+    ray.add_child(reticle)
+    root.add_child(ray)
+
+    line._process(0.016)
+    reticle._process(0.016)
+    check(not line.visible, "line hidden while the ray is invalid")
+    check(not reticle.visible, "reticle hidden while the ray is invalid")
+
+    ray._ray_state = {"valid": true, "origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "end": Vector3(0, 0, -3), "hit": true, "hovered": null}
+    line._process(0.016)
+    reticle._process(0.016)
+    check(line.visible, "line visible with a valid ray")
+    check(reticle.visible, "reticle visible on a hit")
+    check(reticle.global_position.is_equal_approx(Vector3(0, 0, -3)), "reticle sits at the hit point")
+
+    ray._ray_state = {"valid": true, "origin": Vector3.ZERO, "direction": Vector3(0, 0, -1), "end": Vector3(0, 0, -6), "hit": false, "hovered": null}
+    line._process(0.016)
+    reticle._process(0.016)
+    check(line.visible, "line visible on a miss (full length)")
+    check(not reticle.visible, "reticle hidden on a miss")
+
+    ray.free()
     manager.free()
