@@ -5,8 +5,9 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 ## to hover/select nearby interactables. This is the Direct Interactor half of
 ## Unity XRI's near/far setup; XRRayInteractor remains the far interactor.
 
-@export var hover_radius := 0.16
-@export var max_results := 16
+@export_group("Direct Hover")
+@export_range(0.01, 2.0, 0.01, "or_greater") var hover_radius := 0.16
+@export_range(1, 128, 1, "or_greater") var max_results := 16
 @export_flags_3d_physics var collision_mask := 1
 @export var collide_with_areas := true
 

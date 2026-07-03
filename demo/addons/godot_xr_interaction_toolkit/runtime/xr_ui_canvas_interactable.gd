@@ -4,11 +4,14 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.
 ## 3D interactable surface that forwards XR ray hover/select to a SubViewport
 ## as mouse input, letting ordinary Godot Control buttons/sliders work in XR.
 
+@export_group("Panel")
 @export var viewport_path: NodePath
 @export var panel_mesh_path: NodePath
 @export var camera_path: NodePath
 @export var panel_size := Vector2(1.6, 0.9)
 @export var viewport_pixel_size := Vector2i(1024, 640)
+
+@export_group("Screen Pointer")
 @export var screen_pointer_enabled := true
 @export var consume_screen_pointer_events := true
 

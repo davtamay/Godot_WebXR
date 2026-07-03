@@ -16,20 +16,29 @@ const BROWSER_PALM_JOINT_NAMES := [
 ## to handedness, controller aim poses from XRController3D, and the validated
 ## XRHandTracker hand-ray fallback. Inert outside web exports.
 
+@export_group("Rig")
 @export var xr_origin_path: NodePath
 @export var left_controller_path: NodePath
 @export var right_controller_path: NodePath
+
+@export_group("Ray Source")
 ## false: prefer the runtime target ray from XRController3D aim pose. On Quest
 ## hand tracking this is closer to the Meta OS cursor behavior. true: prefer
 ## the fallback ray computed from hand joints.
 @export var prefer_hand_ray := false
+
+@export_group("Pinch Select")
 @export var synthesize_pinch_select := true
-@export var pinch_start_distance := 0.035
-@export var pinch_end_distance := 0.055
+@export_range(0.001, 0.2, 0.001, "or_greater") var pinch_start_distance := 0.035
+@export_range(0.001, 0.2, 0.001, "or_greater") var pinch_end_distance := 0.055
+
+@export_group("Select Stabilization")
 ## Experimental: keeps a hand ray from jumping when thumb/index pinch geometry changes.
 ## While selected, the cached pre-select ray translates with the palm but keeps
 ## its aim direction stable until release.
 @export var stabilize_hand_select := false
+
+@export_group("Browser Bridge")
 @export var prefer_browser_hand_bridge := true
 
 var _webxr

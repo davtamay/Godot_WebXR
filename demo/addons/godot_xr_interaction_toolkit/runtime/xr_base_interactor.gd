@@ -13,8 +13,11 @@ signal hover_exited(interactable)
 signal select_entered(interactable)
 signal select_exited(interactable)
 
+@export_group("Input")
 @export var input_adapter_path: NodePath
 @export var hand: XRInputAdapter.Hand = XRInputAdapter.Hand.LEFT
+
+@export_group("Interaction")
 @export_flags("Layer 1", "Layer 2", "Layer 3", "Layer 4", "Layer 5", "Layer 6", "Layer 7", "Layer 8") var interaction_layers := 1
 
 var _manager: Node

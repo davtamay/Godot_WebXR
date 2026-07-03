@@ -5,10 +5,13 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd
 ## aim ray and, while selecting, exposes an attach pose at the captured grab
 ## distance so XRGrabInteractable can follow the ray.
 
-@export var max_distance := 6.0
+@export_group("Raycast")
+@export_range(0.1, 100.0, 0.1, "or_greater") var max_distance := 6.0
 @export_flags_3d_physics var collision_mask := 1
 @export var collide_with_areas := true
-@export var min_grab_distance := 0.25
+@export_range(0.0, 20.0, 0.01, "or_greater") var min_grab_distance := 0.25
+
+@export_group("Suppression")
 ## Optional linked near/direct interactor. When it is active, this far ray is
 ## suppressed so one hand does not show or select with near and far at once.
 @export var suppress_interactor_path: NodePath

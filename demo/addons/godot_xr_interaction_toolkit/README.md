@@ -41,14 +41,22 @@ Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
 Interaction layers: `interaction_layers` bitmasks on interactor and interactable
 must share a bit (default: both `1`). They are independent of physics layers;
 `XRDirectInteractor.collision_mask`, `XRRayInteractor.collision_mask`, and
-   `XRScreenRayInteractor.collision_mask` control what each interactor can
+`XRScreenRayInteractor.collision_mask` control what each interactor can
 physically hit.
+
+Inspector customization: runtime scripts are Godot components. Add the script
+to a node and tune its exported properties in the Inspector. The major
+components group their settings by target/attach/movement, raycast,
+suppression, direct hover, UI panel, WebXR input, pinch select, and browser
+bridge behavior.
 
 Two-hand grab: enable `two_hand_grab_enabled` on `XRGrabInteractable` to allow
 a second interactor to select the same object. With `two_hand_rotate` enabled,
 the object rotates with the hand-to-hand span. With `two_hand_scale` enabled,
-the object uniformly scales as the hands move closer/farther apart. One-hand
-grab behavior remains unchanged for objects that do not opt in.
+the object uniformly scales as the hands move closer/farther apart. Use
+`track_position`, `track_rotation`, and `two_hand_track_position` to constrain
+which transform channels follow the hands. One-hand grab behavior remains
+unchanged for objects that do not opt in.
 
 `WebXRInputAdapter.prefer_hand_ray` defaults to `false`, so far rays use the
 runtime `XRController3D` aim pose first. On Quest hand tracking this better

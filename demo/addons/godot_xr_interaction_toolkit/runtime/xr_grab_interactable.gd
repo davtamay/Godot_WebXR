@@ -8,26 +8,37 @@ extends "res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.
 
 enum MovementType { INSTANT, KINEMATIC_SMOOTH, VELOCITY_TRACKED }
 
+@export_group("Target")
 ## Node3D to move. Empty = this node.
 @export var target_path: NodePath
+
+@export_group("Attach")
 ## Optional grip-point child. Only used when snap_to_attach is true.
 @export var attach_transform_path: NodePath
 ## true: the attach point snaps onto the interactor's attach pose (XRITK-style
 ## grip). false (default): the object keeps its pose relative to the ray point.
 @export var snap_to_attach := false
+
+@export_group("Movement")
 @export var movement_type := MovementType.INSTANT
-@export var smoothing_speed := 12.0
+@export_range(0.0, 60.0, 0.1, "or_greater") var smoothing_speed := 12.0
+## false: keep the current world position while selected. Useful for rotation-
+## only handles and constrained test objects.
+@export var track_position := true
 ## false (default): position-only follow, world rotation preserved; stable for
 ## hand rays. true: follow the attach pose's rotation too.
 @export var track_rotation := false
-@export var max_tracked_speed := 20.0
+@export_range(0.0, 100.0, 0.1, "or_greater") var max_tracked_speed := 20.0
+
+@export_group("Two Hand Grab")
 ## Allows a second interactor to select the same object. The second hand rotates
 ## around the hand-to-hand axis change, and can uniformly scale by hand distance.
 @export var two_hand_grab_enabled := false
+@export var two_hand_track_position := true
 @export var two_hand_rotate := true
 @export var two_hand_scale := true
-@export var two_hand_min_scale_multiplier := 0.25
-@export var two_hand_max_scale_multiplier := 4.0
+@export_range(0.01, 10.0, 0.01, "or_greater") var two_hand_min_scale_multiplier := 0.25
+@export_range(0.01, 10.0, 0.01, "or_greater") var two_hand_max_scale_multiplier := 4.0
 
 var _grab_offset := Transform3D.IDENTITY
 var _grabbing: Node
@@ -88,14 +99,14 @@ func _physics_process(delta: float) -> void:
         if not _two_hand_active:
             _begin_two_hand_grab()
         if _two_hand_active:
-            _apply_movement(target, _compute_two_hand_transform(), delta, true)
+            _apply_movement(target, _compute_two_hand_transform(), delta, true, two_hand_track_position)
         return
 
     if _grabbing == null:
         return
 
     var desired: Transform3D = _grabbing.get_attach_pose() * _grab_offset
-    _apply_movement(target, desired, delta, track_rotation)
+    _apply_movement(target, desired, delta, track_rotation, track_position)
 
 func _compute_grab_offset(interactor) -> Transform3D:
     var target := get_target()
@@ -178,7 +189,9 @@ func _rotation_between_vectors(from_vector: Vector3, to_vector: Vector3) -> Basi
             axis = from_dir.cross(Vector3.RIGHT)
     return Basis(axis.normalized(), acos(dot))
 
-func _apply_movement(target: Node3D, desired: Transform3D, delta: float, apply_basis := true) -> void:
+func _apply_movement(target: Node3D, desired: Transform3D, delta: float, apply_basis := true, apply_origin := true) -> void:
+    if not apply_origin:
+        desired.origin = target.global_transform.origin
     if not apply_basis:
         desired.basis = target.global_transform.basis
 

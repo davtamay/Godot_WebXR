@@ -45,6 +45,7 @@ func _run_all() -> void:
     _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_two_hand_grab_rotate_and_scale()
+    _test_grab_track_position_toggle()
     _test_visuals_follow_ray_state()
     await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
@@ -617,6 +618,29 @@ func _test_two_hand_grab_rotate_and_scale() -> void:
     manager.request_deselect(left)
     right.free()
     left.free()
+    grab.free()
+    manager.free()
+
+func _test_grab_track_position_toggle() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+
+    var grab := XRGrabInteractable.new()
+    grab.track_position = false
+    root.add_child(grab)
+    grab.global_position = Vector3(3, 0, 0)
+
+    var interactor := FakeInteractor.new()
+    interactor.attach = Transform3D(Basis.IDENTITY, Vector3.ZERO)
+    root.add_child(interactor)
+
+    manager.request_select(interactor, grab)
+    interactor.attach.origin = Vector3(0, 2, -1)
+    grab._physics_process(1.0 / 60.0)
+    check(grab.global_position.is_equal_approx(Vector3(3, 0, 0)), "grab track_position false keeps world position")
+    manager.request_deselect(interactor)
+
+    interactor.free()
     grab.free()
     manager.free()
 
