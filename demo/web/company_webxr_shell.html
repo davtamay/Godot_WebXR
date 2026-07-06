@@ -183,10 +183,15 @@
         optionalFeatures.add('depth-sensing');
         next.optionalFeatures = Array.from(optionalFeatures);
         if (!next.depthSensing) {
+          // This bridge reads depth on the CPU (frame.getDepthInformation +
+          // getDepthInMeters -> XRCPUDepthInformation), which is ONLY valid
+          // when the session is granted cpu-optimized usage. Request CPU only
+          // and CPU-friendly formats first; listing float32/gpu here makes
+          // Quest Browser negotiate gpu-optimized, after which the CPU call
+          // throws InvalidStateError.
           next.depthSensing = {
-            usagePreference: ['cpu-optimized', 'gpu-optimized'],
-            dataFormatPreference: ['float32', 'luminance-alpha', 'unsigned-short'],
-            depthTypeRequest: ['smooth', 'raw'],
+            usagePreference: ['cpu-optimized'],
+            dataFormatPreference: ['luminance-alpha', 'unsigned-short', 'float32'],
             matchDepthView: true,
           };
         }
@@ -264,6 +269,16 @@
         }
         if (!pose || !pose.views || pose.views.length === 0) {
           depthBridge.latest = depthFailure('No viewer pose for depth capture.');
+          return;
+        }
+
+        // frame.getDepthInformation() requires cpu-optimized usage. If the UA
+        // granted gpu-optimized, calling it throws InvalidStateError, so report
+        // a legible reason instead of the raw exception.
+        if (usage && usage !== 'unknown' && usage !== 'cpu-optimized') {
+          depthBridge.latest = depthFailure(
+            `depth granted "${usage}" usage; this CPU readback path needs cpu-optimized depth.`,
+            usage, dataFormat, active);
           return;
         }
 
