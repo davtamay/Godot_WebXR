@@ -21,7 +21,7 @@ const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runt
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
 const WebXRHandVisualizer := preload("res://scripts/webxr_hand_visualizer.gd")
-const WebXRDepthMeshVisualizer := preload("res://scripts/webxr_depth_mesh_visualizer.gd")
+const WebXRDepthMeshVisualizer := preload("res://addons/godot_webxr_kit/runtime/webxr_depth_mesh_visualizer.gd")
 
 var _checks := 0
 var _failures := 0
