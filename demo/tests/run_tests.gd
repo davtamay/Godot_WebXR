@@ -35,6 +35,7 @@ func _run_all() -> void:
     _test_hand_ray_geometry()
     _test_hand_tracker_resolver_validity()
     _test_hand_visualizer_fallback_shape()
+    _test_hand_bone_basis_no_shear()
     await _test_depth_mesh_visualizer_builds_fake_snapshot()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
@@ -200,6 +201,27 @@ func _test_hand_visualizer_fallback_shape() -> void:
     var wrapped_status: String = visualizer.call("_format_world_status", "Hand tracking: Left, Right | L 25 browser joints frame=10 | R 25 browser joints frame=10.")
     check(wrapped_status.split("\n").size() == 3, "world hand tracking diagnostics wrap into multiple lines")
     visualizer.free()
+
+func _test_hand_bone_basis_no_shear() -> void:
+    # A diagonal (non-axis-aligned) bone is where parent-frame scaling shears.
+    var from_position := Vector3(0.1, 1.2, -0.3)
+    var to_position := Vector3(0.13, 1.24, -0.28)
+    var radius := 0.006
+    var delta := to_position - from_position
+    var length := delta.length()
+    var basis: Basis = WebXRHandVisualizer.bone_basis(from_position, to_position, radius)
+
+    check(is_equal_approx(basis.y.length(), length), "bone long axis (Y) spans the full joint distance")
+    check((basis.y.normalized()).is_equal_approx(delta.normalized()), "bone Y axis points from joint to joint")
+    check(is_equal_approx(basis.x.length(), radius), "bone X axis carries the radius")
+    check(is_equal_approx(basis.z.length(), radius), "bone Z axis carries the radius")
+    # No shear: the three columns stay mutually perpendicular after scaling.
+    check(absf(basis.x.dot(basis.y)) < 0.0000001, "bone X/Y stay perpendicular (no shear)")
+    check(absf(basis.y.dot(basis.z)) < 0.0000001, "bone Y/Z stay perpendicular (no shear)")
+    check(absf(basis.x.dot(basis.z)) < 0.0000001, "bone X/Z stay perpendicular (no shear)")
+
+    var degenerate: Basis = WebXRHandVisualizer.bone_basis(from_position, from_position, radius)
+    check(is_equal_approx(degenerate.y.length(), 0.0), "coincident joints collapse the bone instead of exploding")
 
 func _test_depth_mesh_visualizer_builds_fake_snapshot() -> void:
     var visualizer := WebXRDepthMeshVisualizer.new()

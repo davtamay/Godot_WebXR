@@ -608,7 +608,7 @@ func _update_bones(bone_nodes: Array[MeshInstance3D], joint_positions: Dictionar
             bone_node.visible = false
             continue
 
-        var basis := _basis_from_y_axis(delta).scaled(Vector3(bone_radius, length, bone_radius))
+        var basis := bone_basis(from_position, to_position, bone_radius)
         bone_node.transform = Transform3D(basis, from_position + delta * 0.5)
 
 func _update_pinch_materials(hand_data: Dictionary, joint_positions: Dictionary, joint_valid: Dictionary) -> void:
@@ -627,7 +627,10 @@ func _update_pinch_materials(hand_data: Dictionary, joint_positions: Dictionary,
     (joint_nodes[thumb_tip] as MeshInstance3D).set_surface_override_material(0, material)
     (joint_nodes[index_tip] as MeshInstance3D).set_surface_override_material(0, material)
 
-func _basis_from_y_axis(direction: Vector3) -> Basis:
+## Orthonormal basis whose local +Y points along `direction`. Roll about Y is
+## arbitrary (chosen from a stable helper axis); irrelevant for a radially
+## symmetric bone cylinder.
+static func _basis_from_y_axis(direction: Vector3) -> Basis:
     var y_axis := direction.normalized()
     var helper := Vector3.UP
     if absf(y_axis.dot(helper)) > 0.95:
@@ -636,6 +639,18 @@ func _basis_from_y_axis(direction: Vector3) -> Basis:
     var x_axis := helper.cross(y_axis).normalized()
     var z_axis := x_axis.cross(y_axis).normalized()
     return Basis(x_axis, y_axis, z_axis)
+
+## Bone transform basis: local +Y spans from->to at full bone length, X/Z carry
+## the radius. Scaling is baked into the columns (B * S = LOCAL-frame scale), so
+## the cylinder stays rigid. Using Basis.scaled() here would scale in the PARENT
+## frame (S * B) and shear the bone whenever it is not axis-aligned.
+static func bone_basis(from_position: Vector3, to_position: Vector3, radius: float) -> Basis:
+    var delta := to_position - from_position
+    var length := delta.length()
+    if length < 0.00001:
+        return Basis(Vector3(radius, 0, 0), Vector3.ZERO, Vector3(0, 0, radius))
+    var axes := _basis_from_y_axis(delta)
+    return Basis(axes.x * radius, axes.y * length, axes.z * radius)
 
 func _set_status(message: String) -> void:
     if _status_label:
