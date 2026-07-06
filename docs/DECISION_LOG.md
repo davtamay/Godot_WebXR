@@ -109,3 +109,35 @@ Explicitly deferred, not forgotten:
   minimal copy-in sample scene is still owed to consumers.
 - Two earlier descopes are now DONE and off this list: socket interactor
   (1388e1b, 74a9cf0) and throw velocity estimation (a2e1b39).
+
+## 2026-07-06 - Depth-Mesh Preview Descoped On Quest (Browser Capability Gap)
+
+Decision: the AR depth-mesh preview stays in the tree but is documented as
+non-functional on Quest Browser for now, rather than pursued further. The CPU
+readback code and its clean failure guard remain.
+
+Finding (confirmed on device + against the W3C WebXR Depth Sensing spec and
+Meta's release notes): Quest Browser 146.0's WebXR depth is experimental
+("depth projection", Horizon Browser 146.0, 2026-04-21) and is granted
+**gpu-optimized only** (depth delivered as a WebGL texture via
+`XRWebGLBinding.getDepthInformation`). Our bridge reads depth on the CPU
+(`XRFrame.getDepthInformation` + `getDepthInMeters`), which the spec REQUIRES
+to throw in gpu-optimized mode - the observed `InvalidStateError`. Requesting
+`usagePreference:['cpu-optimized']` with no gpu fallback still yielded
+`depthUsage='gpu-optimized'`, so the CPU path is unreachable on Quest today.
+
+Two genuine bugs were found and fixed along the way (both real, both committed):
+the capture gate keyed on the nonexistent `frame.session.mode`, and the request
+biased toward gpu-optimized formats. Neither was the whole story; the platform
+only offers gpu depth.
+
+Rejected alternative (GPU-texture readback): consuming gpu-optimized depth would
+mean binding the depth texture to a framebuffer and `readPixels` in the shell,
+sharing Godot's WebGL2 context. That risks perturbing the main renderer (the
+core, working deliverable) for an innovation-backlog extra. Not worth the risk
+now; revisit if depth occlusion becomes a real requirement, or when Meta ships
+cpu-optimized depth (then the existing CPU path works unchanged).
+
+This is the same class of finding as the Galaxy XR multiview gap: a browser
+capability limit, tracked and bounded, not an addon or export defect. The
+interaction toolkit and WebGL2/WebXR feasibility conclusions are unaffected.

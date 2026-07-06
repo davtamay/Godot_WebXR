@@ -276,8 +276,11 @@
         // granted gpu-optimized, calling it throws InvalidStateError, so report
         // a legible reason instead of the raw exception.
         if (usage && usage !== 'unknown' && usage !== 'cpu-optimized') {
+          // Known Quest Browser limitation (Horizon 146.0, experimental WebXR
+          // depth): only gpu-optimized depth is granted, so the CPU readback
+          // path is unavailable here. See docs/DECISION_LOG.md 2026-07-06.
           depthBridge.latest = depthFailure(
-            `depth granted "${usage}" usage; this CPU readback path needs cpu-optimized depth.`,
+            `depth granted "${usage}" (Quest offers GPU depth only); CPU depth-mesh needs cpu-optimized depth.`,
             usage, dataFormat, active);
           return;
         }
