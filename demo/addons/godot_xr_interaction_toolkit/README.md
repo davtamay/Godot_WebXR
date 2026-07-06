@@ -1,11 +1,26 @@
 # Godot XR Interaction Toolkit
 
 XR Interaction Toolkit-style interaction for Godot 4.4+/4.7+: interactors,
-interactables, a select-arbitration manager, and input adapters that keep
-WebXR/OpenXR specifics out of interaction logic. Pure GDScript — no engine
-builds, no export-template changes.
+interactables, a select-arbitration manager, and the **abstract** input-adapter
+seam that keeps WebXR/OpenXR specifics out of interaction logic. Pure GDScript —
+no engine builds, no export-template changes. Engine-agnostic: depends on nothing.
 
 Architecture: see `docs/xr_interaction_toolkit_architecture.md` in this repo.
+
+## Companion packages
+
+This core ships only the abstract `XRInputAdapter`. Platform and presentation
+layers live in separate drop-in addons so you take only what you need:
+
+- **`godot_webxr_kit`** — WebXR support: the concrete `WebXRInputAdapter`, the
+  custom HTML shell, session bootstrap, capability probe, and AR depth preview.
+  Add this for browser/WebXR delivery. (Depends on this toolkit.)
+- **`godot_xr_hands`** — a procedural `XRHandTracker` hand visualizer. Add this
+  for a hand visual. (Depends on this toolkit; optionally uses `godot_webxr_kit`'s
+  hand bridge if present.)
+
+The `WebXRInputAdapter` referenced in the WebXR quick start below is provided by
+`godot_webxr_kit`, not this package.
 
 ## Quick start (WebXR)
 

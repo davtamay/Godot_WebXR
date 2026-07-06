@@ -141,3 +141,47 @@ cpu-optimized depth (then the existing CPU path works unchanged).
 This is the same class of finding as the Galaxy XR multiview gap: a browser
 capability limit, tracked and bounded, not an addon or export defect. The
 interaction toolkit and WebGL2/WebXR feasibility conclusions are unaffected.
+
+## 2026-07-06 - Split Into Three Drop-In Packages (toolkit / webxr_kit / xr_hands)
+
+Decision: the single `godot_xr_interaction_toolkit` addon became three
+independent pure-GDScript addons so a project can take only what it needs.
+Dependency DAG with the engine-agnostic core at the base:
+`godot_webxr_kit → godot_xr_interaction_toolkit` and
+`godot_xr_hands → godot_xr_interaction_toolkit`; nothing makes the toolkit or
+`godot_xr_hands` load-time-depend on `godot_webxr_kit`.
+
+What moved:
+- `godot_xr_interaction_toolkit` (core, depends on nothing): interactors,
+  interactables, manager, grab/socket/UI, visuals, the ABSTRACT `XRInputAdapter`
+  seam, and the `XRHandTracker` gesture/resolver helpers.
+- `godot_webxr_kit` (WebXR layer): the concrete `WebXRInputAdapter` (moved out of
+  the core), the custom HTML shell, `webxr_bootstrap.gd`, `browser_capabilities.gd`,
+  and `webxr_depth_mesh_visualizer.gd`.
+- `godot_xr_hands` (presentation): the procedural hand visualizer, renamed
+  `webxr_hand_visualizer.gd → hand_visualizer.gd`.
+
+Coupling fixed: the core toolkit previously contained `WebXRInputAdapter`, which
+reads `window.CompanyWebXRHandBridge` — a JS global only the shell provides. That
+hidden shell dependency lived in the "engine-agnostic" core. Moving the adapter
+into `godot_webxr_kit` alongside the shell removes it; the core is now verified
+free of `CompanyWebXR` / `res://scripts` / `res://web` references. The hand
+visualizer keeps only an OPTIONAL, feature-detected use of that same global (a
+`JavaScriptBridge.eval` string, not a Godot path), so `godot_xr_hands` stays
+usable standalone on native OpenXR.
+
+Why depth stayed in the WebXR kit (not grouped with hands): the depth-mesh
+visualizer has no engine-agnostic data source — it reads only
+`CompanyWebXRDepthBridge` from the shell, and depth is Quest-WebXR-only. Grouping
+it with the hand visual would have forced `godot_xr_hands` to hard-depend on
+`godot_webxr_kit`, defeating the independence goal.
+
+Verification: headless suite 163 checks / 0 failures after the split; headless
+load exits 0; Web export exits 0 with the shell embedded from its new location;
+separation greps confirm the DAG. A stale `.godot` class cache produced a
+transient "hides a global script class" error after moving a `class_name` file;
+resolved by an editor rescan (`--editor --headless --quit`) — a consumer/CI hits
+this once on first import and it self-heals.
+
+Deferred follow-up (unchanged): 5 toolkit files use absolute-path `preload(...)`,
+so the toolkit folder cannot be renamed without edits. Out of scope for this split.
