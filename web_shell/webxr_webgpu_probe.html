@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebXR + WebGPU probe</title>
+<style>
+	body { font: 15px/1.45 system-ui, sans-serif; margin: 2rem auto; max-width: 46rem; padding: 0 1rem; background: #101216; color: #e8eaf0; }
+	h1 { font-size: 1.3rem; }
+	table { border-collapse: collapse; margin: 1rem 0; }
+	td { padding: 0.15rem 0.75rem 0.15rem 0; }
+	.ok { color: #46d67c; } .bad { color: #ff6b6b; } .warn { color: #f4c542; }
+	button { font: inherit; padding: 0.6rem 1.4rem; border-radius: 0.5rem; border: 1px solid #3a3f4a; background: #1b2027; color: inherit; cursor: pointer; }
+	button:disabled { opacity: 0.45; cursor: default; }
+	#log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; background: #0a0c0f; border-radius: 0.5rem; padding: 0.8rem; min-height: 6rem; }
+</style>
+</head>
+<body>
+<h1>WebXR + WebGPU probe (XRGPUBinding)</h1>
+<p>Tests whether this browser can render an immersive WebXR session through
+WebGPU. In the headset you should see a <b>deep blue</b> void in the left eye,
+<b>deep green</b> in the right, and a <b>spinning magenta triangle</b> fused in
+front of you. WebXR needs a secure context: use HTTPS, or
+<code>adb reverse tcp:8060 tcp:8060</code> and open
+<code>http://localhost:8060/...</code> on the headset.</p>
+<table id="caps"></table>
+<button id="enter" disabled>Enter VR (WebGPU)</button>
+<h2 style="font-size:1rem">Log</h2>
+<div id="log"></div>
+<script>
+'use strict';
+
+const logEl = document.getElementById('log');
+function log(msg, cls) {
+	const line = document.createElement('div');
+	line.textContent = msg;
+	if (cls) { line.className = cls; }
+	logEl.appendChild(line);
+	console.log(msg);
+}
+
+const caps = document.getElementById('caps');
+function capRow(name, value, good) {
+	const tr = document.createElement('tr');
+	tr.innerHTML = `<td>${name}</td><td class="${good ? 'ok' : 'bad'}">${value}</td>`;
+	caps.appendChild(tr);
+}
+
+const hasGPU = 'gpu' in navigator;
+const hasXR = 'xr' in navigator;
+const hasBinding = 'XRGPUBinding' in window;
+capRow('WebGPU (navigator.gpu)', hasGPU ? 'yes' : 'no', hasGPU);
+capRow('WebXR (navigator.xr)', hasXR ? 'yes' : 'no', hasXR);
+capRow('XRGPUBinding (WebXR-WebGPU)', hasBinding ? 'yes' : 'no', hasBinding);
+capRow('Secure context', window.isSecureContext ? 'yes' : 'no', window.isSecureContext);
+
+const enterBtn = document.getElementById('enter');
+
+(async () => {
+	if (!hasXR) { log('navigator.xr missing - not an XR browser.', 'bad'); return; }
+	const vr = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+	capRow('immersive-vr session', vr ? 'supported' : 'unsupported', vr);
+	if (!hasGPU) { log('navigator.gpu missing - enable WebGPU (Quest Browser: experimental flag).', 'bad'); return; }
+	if (!hasBinding) { log('XRGPUBinding missing - this browser cannot bind WebXR to WebGPU yet.', 'bad'); return; }
+	if (vr) {
+		enterBtn.disabled = false;
+		log('Ready. Put the headset on and press Enter VR.', 'ok');
+	}
+})();
+
+const SHADER = `
+struct Uniforms { angle : f32 };
+@group(0) @binding(0) var<uniform> u : Uniforms;
+
+@vertex
+fn vs(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
+	// Equilateral-ish triangle ~1.5m ahead, spun around Z.
+	var p = array<vec2f, 3>(vec2f(0.0, 0.35), vec2f(-0.3, -0.25), vec2f(0.3, -0.25));
+	let c = cos(u.angle);
+	let s = sin(u.angle);
+	let v = vec2f(p[i].x * c - p[i].y * s, p[i].x * s + p[i].y * c);
+	// NDC-ish placement; good enough for a visual probe (no view/projection
+	// matrices: the triangle is head-locked, which also proves per-eye
+	// rendering distinctly - it must appear fused, not doubled).
+	return vec4f(v.x, v.y, -0.5, 1.0);
+}
+
+@fragment
+fn fs() -> @location(0) vec4f {
+	return vec4f(0.9, 0.2, 0.9, 1.0);
+}
+`;
+
+enterBtn.addEventListener('click', async () => {
+	enterBtn.disabled = true;
+	try {
+		const adapter = await navigator.gpu.requestAdapter({ xrCompatible: true });
+		if (!adapter) { log('requestAdapter({xrCompatible:true}) returned null.', 'bad'); return; }
+		const device = await adapter.requestDevice();
+		device.addEventListener('uncapturederror', (ev) => log('GPU error: ' + ev.error.message, 'bad'));
+
+		let session;
+		try {
+			session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['webgpu'] });
+		} catch (e) {
+			log(`requestSession with required 'webgpu' failed (${e.message}); retrying without it...`, 'warn');
+			session = await navigator.xr.requestSession('immersive-vr');
+		}
+		log('Session started.', 'ok');
+		session.addEventListener('end', () => { log('Session ended.'); enterBtn.disabled = false; });
+
+		const binding = new XRGPUBinding(session, device);
+		const colorFormat = binding.getPreferredColorFormat ? binding.getPreferredColorFormat() : 'rgba8unorm';
+		log(`XRGPUBinding created; color format: ${colorFormat}`, 'ok');
+		const layer = binding.createProjectionLayer({ colorFormat });
+		session.updateRenderState({ layers: [layer] });
+
+		const refSpace = await session.requestReferenceSpace('local');
+
+		const module = device.createShaderModule({ code: SHADER });
+		const uniformBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const pipeline = device.createRenderPipeline({
+			layout: 'auto',
+			vertex: { module, entryPoint: 'vs' },
+			fragment: { module, entryPoint: 'fs', targets: [{ format: colorFormat }] },
+			primitive: { topology: 'triangle-list' },
+		});
+		const bindGroup = device.createBindGroup({
+			layout: pipeline.getBindGroupLayout(0),
+			entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+		});
+
+		let frames = 0;
+		const start = performance.now();
+		session.requestAnimationFrame(function onFrame(t, frame) {
+			session.requestAnimationFrame(onFrame);
+			const pose = frame.getViewerPose(refSpace);
+			if (!pose) { return; }
+
+			device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([(t - start) * 0.002]));
+			const encoder = device.createCommandEncoder();
+			for (const view of pose.views) {
+				const sub = binding.getViewSubImage(layer, view);
+				const pass = encoder.beginRenderPass({
+					colorAttachments: [{
+						view: sub.colorTexture.createView(sub.getViewDescriptor ? sub.getViewDescriptor() : undefined),
+						loadOp: 'clear',
+						storeOp: 'store',
+						clearValue: view.eye === 'right' ? { r: 0.02, g: 0.12, b: 0.03, a: 1 } : { r: 0.02, g: 0.04, b: 0.14, a: 1 },
+					}],
+				});
+				const vp = sub.viewport;
+				pass.setViewport(vp.x, vp.y, vp.width, vp.height, 0, 1);
+				pass.setPipeline(pipeline);
+				pass.setBindGroup(0, bindGroup);
+				pass.draw(3);
+				pass.end();
+			}
+			device.queue.submit([encoder.finish()]);
+
+			frames += 1;
+			if (frames === 90) {
+				log(`90 frames rendered through XRGPUBinding (views: ${pose.views.length}).`, 'ok');
+			}
+		});
+	} catch (e) {
+		log('FAILED: ' + (e && e.message ? e.message : e), 'bad');
+		enterBtn.disabled = false;
+	}
+});
+</script>
+</body>
+</html>
