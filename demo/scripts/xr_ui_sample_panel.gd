@@ -32,17 +32,14 @@ func _on_reset_pressed() -> void:
     _sync_value_label()
 
 func _on_depth_pressed() -> void:
-    var visualizers := get_tree().get_nodes_in_group("webxr_depth_mesh_visualizer")
-    if visualizers.is_empty():
-        _state_label.text = "Depth mesh visualizer missing."
+    var bridges := get_tree().get_nodes_in_group("webxr_mesh_bridge")
+    if bridges.is_empty():
+        _state_label.text = "Room mesh bridge missing."
         return
 
-    for node in visualizers:
-        if node.has_method("capture_depth_mesh"):
-            _state_label.text = node.capture_depth_mesh()
-            return
-
-    _state_label.text = "Depth mesh visualizer missing capture method."
+    var bridge = bridges[0]
+    bridge.set_visualize(not bridge.auto_visualize)
+    _state_label.text = bridge.get_status()
 
 func _on_slider_changed(value: float) -> void:
     _progress.value = value
