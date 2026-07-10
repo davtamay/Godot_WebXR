@@ -14,14 +14,16 @@ const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/run
 const XRDirectInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd")
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 const XRSocketInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd")
-const WebXRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/webxr_input_adapter.gd")
+const WebXRInputAdapter := preload("res://addons/godot_webxr_kit/runtime/webxr_input_adapter.gd")
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
 const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
 const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
-const WebXRHandVisualizer := preload("res://scripts/webxr_hand_visualizer.gd")
-const WebXRDepthMeshVisualizer := preload("res://scripts/webxr_depth_mesh_visualizer.gd")
+const WebXRHandVisualizer := preload("res://addons/godot_xr_hands/runtime/hand_visualizer.gd")
+const WebXRDepthMeshVisualizer := preload("res://addons/godot_webxr_kit/runtime/webxr_depth_mesh_visualizer.gd")
+const PrincipledMaterial := preload("res://addons/godot_blender_principled/runtime/principled_material.gd")
+const StrictParityEnvironment := preload("res://addons/godot_blender_principled/runtime/strict_parity_environment.gd")
 
 var _checks := 0
 var _failures := 0
@@ -32,9 +34,13 @@ func _initialize() -> void:
 func _run_all() -> void:
     print("== XR Interaction Toolkit tests ==")
     _test_layer_mask()
+    _test_principled_material_aliases()
+    _test_strict_parity_environment()
+    _test_material_collection_import()
     _test_hand_ray_geometry()
     _test_hand_tracker_resolver_validity()
     _test_hand_visualizer_fallback_shape()
+    _test_hand_bone_basis_no_shear()
     await _test_depth_mesh_visualizer_builds_fake_snapshot()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
@@ -42,6 +48,11 @@ func _run_all() -> void:
     _test_interactor_activate_use_events()
     _test_ray_grab_distance_clamp()
     _test_ray_motion_distance_manipulation()
+    _test_motion_distance_accumulates_slow_motion()
+    _test_collider_refresh_preserves_selection()
+    _test_reentrant_deselect_during_select_entered()
+    _test_interactor_exit_tree_clears_hover()
+    _test_stale_manager_recovery()
     await _test_direct_hover_and_grab_integration()
     await _test_ray_hover_and_grab_integration()
     _test_ray_suppressed_by_direct_interactor()
@@ -76,6 +87,90 @@ func _test_layer_mask() -> void:
     check(XRInteractionLayerMask.overlaps(0b0110, 0b0100), "masks sharing one bit overlap")
     check(not XRInteractionLayerMask.overlaps(0b0011, 0b0100), "disjoint masks do not overlap")
     check(not XRInteractionLayerMask.overlaps(0, 0), "zero masks never overlap")
+
+func _test_principled_material_aliases() -> void:
+    var m := PrincipledMaterial.new()
+    m.base_color = Color(0.2, 0.4, 0.6, 0.8)
+    check(m.albedo_color.is_equal_approx(Color(0.2, 0.4, 0.6, 0.8)), "base_color aliases albedo_color")
+
+    m.normal_strength = 0.8
+    check(is_equal_approx(m.normal_scale, 0.8), "normal_strength aliases normal_scale")
+    check(m.normal_enabled, "setting normal_strength enables normal mapping")
+
+    m.emission_color = Color(1, 0.5, 0)
+    check(m.emission_enabled, "setting emission_color enables emission")
+    check(m.emission.is_equal_approx(Color(1, 0.5, 0)), "emission_color aliases emission")
+    m.emission_strength = 3.0
+    check(is_equal_approx(m.emission_energy_multiplier, 3.0), "emission_strength aliases emission_energy_multiplier")
+
+    m.alpha_mode = PrincipledMaterial.AlphaMode.MASK
+    check(m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, "alpha_mode MASK -> alpha scissor")
+    m.alpha_mode = PrincipledMaterial.AlphaMode.BLEND
+    check(m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA, "alpha_mode BLEND -> alpha")
+    m.alpha_mode = PrincipledMaterial.AlphaMode.OPAQUE
+    check(m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED, "alpha_mode OPAQUE -> opaque")
+
+    m.ior = 1.5
+    check(is_equal_approx(m.metallic_specular, 0.5), "ior 1.5 maps to metallic_specular 0.5")
+
+    # Defaults must apply at construction (material is a Resource -> _init, not _ready).
+    var fresh := PrincipledMaterial.new()
+    check(is_equal_approx(fresh.metallic, 0.0) and is_equal_approx(fresh.roughness, 0.5) and is_equal_approx(fresh.metallic_specular, 0.5), "Blender-matching defaults apply on construction")
+    check(fresh.albedo_color.is_equal_approx(fresh.base_color), "base_color default reaches albedo_color on construction (not left white)")
+
+    # roughness/metallic are native StandardMaterial3D props (Blender names already match)
+    m.roughness = 0.7
+    m.metallic = 0.0
+    check(is_equal_approx(m.roughness, 0.7) and is_equal_approx(m.metallic, 0.0), "native roughness/metallic pass through unchanged")
+
+func _collect_collection_materials() -> Array:
+    var packed: PackedScene = load("res://addons/godot_blender_principled/samples/assets/MaterialCollection.glb")
+    var root_node := packed.instantiate()
+    var out := []
+    var stack := [root_node]
+    while not stack.is_empty():
+        var n = stack.pop_back()
+        if n is MeshInstance3D and n.mesh:
+            for i in n.mesh.get_surface_count():
+                var mat: Material = n.mesh.surface_get_material(i)
+                if mat and not out.has(mat):
+                    out.append(mat)
+        for c in n.get_children():
+            stack.append(c)
+    root_node.free()
+    return out
+
+func _test_material_collection_import() -> void:
+    var mats := _collect_collection_materials()
+    check(mats.size() >= 8, "material collection imported multiple materials, got %d" % mats.size())
+
+    var all_standard := true
+    var has_scissor := false
+    var has_dielectric := false
+    var has_metal := false
+    for m in mats:
+        if not (m is StandardMaterial3D):
+            all_standard = false
+        if m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
+            has_scissor = true
+        if is_equal_approx(m.metallic, 0.0):
+            has_dielectric = true
+        if m.metallic >= 0.99:
+            has_metal = true
+    check(all_standard, "all imported materials are StandardMaterial3D (glTFast-equivalent path)")
+    check(has_scissor, "a cutout material imported as alpha scissor (MASK survived glTF)")
+    check(has_dielectric, "a dielectric material imported with metallic 0")
+    check(has_metal, "a metal material imported with metallic 1")
+
+func _test_strict_parity_environment() -> void:
+    var env: Environment = StrictParityEnvironment.parity_environment()
+    check(env.tonemap_mode == Environment.TONE_MAPPER_LINEAR, "parity uses Linear tonemap (= Blender Standard view)")
+    check(env.ambient_light_source == Environment.AMBIENT_SOURCE_COLOR, "parity ambient is a flat color")
+    check(env.ambient_light_color.is_equal_approx(Color(0.05, 0.05, 0.05)), "parity ambient is 0.05 gray")
+    check(not env.ssao_enabled and not env.sdfgi_enabled and not env.glow_enabled, "parity kills GI/SSAO/glow")
+
+    var nice: Environment = StrictParityEnvironment.nice_environment()
+    check(nice.tonemap_mode == Environment.TONE_MAPPER_AGX, "nice look uses AgX tonemap (= Blender default AgX)")
 
 func _test_hand_ray_geometry() -> void:
     check(XRHandGestureProvider.get_hand_ray_pose(null).is_empty(), "null tracker yields empty pose")
@@ -195,6 +290,27 @@ func _test_hand_visualizer_fallback_shape() -> void:
     var wrapped_status: String = visualizer.call("_format_world_status", "Hand tracking: Left, Right | L 25 browser joints frame=10 | R 25 browser joints frame=10.")
     check(wrapped_status.split("\n").size() == 3, "world hand tracking diagnostics wrap into multiple lines")
     visualizer.free()
+
+func _test_hand_bone_basis_no_shear() -> void:
+    # A diagonal (non-axis-aligned) bone is where parent-frame scaling shears.
+    var from_position := Vector3(0.1, 1.2, -0.3)
+    var to_position := Vector3(0.13, 1.24, -0.28)
+    var radius := 0.006
+    var delta := to_position - from_position
+    var length := delta.length()
+    var basis: Basis = WebXRHandVisualizer.bone_basis(from_position, to_position, radius)
+
+    check(is_equal_approx(basis.y.length(), length), "bone long axis (Y) spans the full joint distance")
+    check((basis.y.normalized()).is_equal_approx(delta.normalized()), "bone Y axis points from joint to joint")
+    check(is_equal_approx(basis.x.length(), radius), "bone X axis carries the radius")
+    check(is_equal_approx(basis.z.length(), radius), "bone Z axis carries the radius")
+    # No shear: the three columns stay mutually perpendicular after scaling.
+    check(absf(basis.x.dot(basis.y)) < 0.0000001, "bone X/Y stay perpendicular (no shear)")
+    check(absf(basis.y.dot(basis.z)) < 0.0000001, "bone Y/Z stay perpendicular (no shear)")
+    check(absf(basis.x.dot(basis.z)) < 0.0000001, "bone X/Z stay perpendicular (no shear)")
+
+    var degenerate: Basis = WebXRHandVisualizer.bone_basis(from_position, from_position, radius)
+    check(is_equal_approx(degenerate.y.length(), 0.0), "coincident joints collapse the bone instead of exploding")
 
 func _test_depth_mesh_visualizer_builds_fake_snapshot() -> void:
     var visualizer := WebXRDepthMeshVisualizer.new()
@@ -399,7 +515,7 @@ func _test_ray_grab_distance_clamp() -> void:
 
     ray._hover_distance = 0.05
     ray._notify_select_granted(interactable)
-    check(is_equal_approx(ray._grab_distance, ray.min_grab_distance), "grab distance clamps up to min_grab_distance")
+    check(is_equal_approx(ray._grab_distance, 0.05), "close grab keeps the true hover distance (no pop to min_grab_distance)")
     ray._notify_select_released(interactable)
 
     ray._hover_distance = 100.0
@@ -419,6 +535,8 @@ func _test_ray_motion_distance_manipulation() -> void:
     root.add_child(adapter)
 
     var ray := XRRayInteractor.new()
+    ray.distance_motion_scale = 1.0
+    ray.max_distance_change_per_second = 4.0
     root.add_child(ray)
     ray.call("set_input_adapter", adapter)
     ray._update_ray(0.016)
@@ -441,6 +559,127 @@ func _test_ray_motion_distance_manipulation() -> void:
     ray.free()
     adapter.free()
     manager.free()
+
+func _test_motion_distance_accumulates_slow_motion() -> void:
+    var ray := XRRayInteractor.new()
+    ray.distance_motion_scale = 1.0
+    root.add_child(ray)
+    var interactable := XRBaseInteractable.new()
+
+    ray._hover_distance = 3.0
+    ray._notify_select_granted(interactable)
+    ray._last_ray_origin = Vector3.ZERO
+    ray._last_ray_direction = Vector3(0, 0, -1)
+    ray._has_last_ray_pose = true
+
+    # 2 mm-per-frame pull: each step is below the 6 mm deadzone and must
+    # accumulate instead of being discarded.
+    var origin := Vector3.ZERO
+    for i in range(10):
+        origin += Vector3(0, 0, 0.002)
+        ray._apply_motion_distance_manipulation(origin, Vector3(0, 0, -1), 1.0 / 60.0)
+        ray._last_ray_origin = origin
+    check(ray._grab_distance < 3.0 - 0.01, "slow per-frame hand motion accumulates into a pull, got %.4f" % ray._grab_distance)
+
+    ray._notify_select_released(interactable)
+    interactable.free()
+    ray.free()
+
+func _test_collider_refresh_preserves_selection() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    var body := StaticBody3D.new()
+    interactable.add_child(body)
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    check(manager.request_select(interactor, interactable), "collider refresh test: select granted")
+    var extra_body := StaticBody3D.new()
+    interactable.add_child(extra_body)
+    check(interactor.get_selected() == interactable, "adding a child collider mid-grab keeps the selection")
+    check(interactable.is_selected(), "interactable stays selected across a collider refresh")
+    check(manager.get_interactable_for_collider(extra_body) == interactable, "collider added mid-grab resolves to the interactable")
+    manager.request_deselect(interactor)
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_reentrant_deselect_during_select_entered() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    interactable.select_entered.connect(func(i) -> void: manager.request_deselect(i))
+    check(not manager.request_select(interactor, interactable), "reentrant deselect makes request_select report failure")
+    check(interactor.get_selected() == null, "interactor not left selected after a reentrant deselect")
+    check(not interactable.is_selected(), "interactable not left selected after a reentrant deselect")
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_interactor_exit_tree_clears_hover() -> void:
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+
+    var exits: Array = []
+    interactable.hover_exited.connect(func(i) -> void: exits.append(i))
+    interactor._set_hovered(interactable)
+    check(interactable.is_hovered(), "exit-tree test: hovered before removal")
+    root.remove_child(interactor)
+    check(not interactable.is_hovered(), "interactor leaving the tree clears hover on the interactable")
+    check(exits.size() == 1 and exits[0] == interactor, "hover_exited reaches the interactable when the interactor exits")
+
+    interactor.free()
+    interactable.free()
+    manager.free()
+
+func _test_stale_manager_recovery() -> void:
+    # Scenario A: manager freed and rebuilt BEFORE the first select.
+    var manager := XRInteractionManager.new()
+    root.add_child(manager)
+    var interactor := FakeInteractor.new()
+    root.add_child(interactor)
+    var interactable := XRBaseInteractable.new()
+    root.add_child(interactable)
+
+    root.remove_child(manager)
+    manager.free()
+    var manager2 := XRInteractionManager.new()
+    root.add_child(manager2)
+
+    interactor._set_hovered(interactable)
+    interactor._try_select()
+    check(interactor.get_selected() == interactable, "select recovers after the manager was freed and rebuilt")
+    check(manager2._selections.get(interactor) == interactable, "the rebuilt manager owns the recovered selection")
+
+    # Scenario B: manager dies MID-GRAB; release must not wedge the interactor.
+    root.remove_child(manager2)
+    manager2.free()
+    var manager3 := XRInteractionManager.new()
+    root.add_child(manager3)
+
+    interactor._release_select()
+    check(interactor.get_selected() == null, "release with a dead manager cleans up locally")
+    check(not interactable.is_selected(), "interactable is released despite the dead manager")
+    interactor._set_hovered(interactable)
+    interactor._try_select()
+    check(interactor.get_selected() == interactable, "interactor can select again after stale-manager recovery")
+    manager3.request_deselect(interactor)
+
+    interactor.free()
+    interactable.free()
+    manager3.free()
 
 func _test_direct_hover_and_grab_integration() -> void:
     var manager := XRInteractionManager.new()

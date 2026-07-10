@@ -118,32 +118,46 @@ model, which is a different API philosophy. Decision: **independent addon, no
 XR Tools dependency**; nothing prevents a project from using both. Revisit only
 if Phase 6 locomotion turns out to duplicate XR Tools' hardest work.
 
-## Addon layout
+## Addon layout (three drop-in packages)
+
+Split 2026-07-06 into three addons forming a DAG with the engine-agnostic core
+at the base: `godot_webxr_kit → toolkit` and `godot_xr_hands → toolkit`. Nothing
+makes the toolkit or `godot_xr_hands` load-time-depend on `godot_webxr_kit`.
 
 ```text
-addons/godot_xr_interaction_toolkit/
-  plugin.cfg
-  plugin.gd                      # @tool EditorPlugin (custom-type icons later)
+addons/godot_xr_interaction_toolkit/     # core, depends on nothing
+  plugin.cfg / plugin.gd
   runtime/
-    xr_interaction_layers.gd     # XRInteractionLayerMask helper
+    xr_interaction_layers.gd             # XRInteractionLayerMask helper
     xr_interaction_manager.gd
-    xr_base_interactor.gd
-    xr_base_interactable.gd
-    xr_ray_interactor.gd
-    xr_grab_interactable.gd
-    xr_interactor_line_visual.gd
-    xr_reticle_visual.gd
+    xr_base_interactor.gd / xr_base_interactable.gd
+    xr_ray_interactor.gd / xr_direct_interactor.gd / xr_screen_ray_interactor.gd
+    xr_grab_interactable.gd / xr_socket_interactor.gd / xr_ui_canvas_interactable.gd
+    xr_interactor_line_visual.gd / xr_reticle_visual.gd
     input/
-      xr_input_adapter.gd
-      webxr_input_adapter.gd
-      openxr_input_adapter.gd
-      xr_hand_gesture_provider.gd
-  samples/                       # Phase 8
-  README.md
+      xr_input_adapter.gd                # ABSTRACT adapter seam (stays here)
+      xr_hand_gesture_provider.gd        # XRHandTracker geometry (engine-agnostic)
+      xr_hand_tracker_resolver.gd        # XRHandTracker joint validity (engine-agnostic)
+
+addons/godot_webxr_kit/                  # WebXR platform layer, depends on toolkit
+  plugin.cfg / plugin.gd
+  runtime/
+    webxr_input_adapter.gd               # concrete WebXRInputAdapter (moved from the toolkit)
+    webxr_bootstrap.gd                   # session lifecycle
+    browser_capabilities.gd             # capability probe
+    webxr_depth_mesh_visualizer.gd       # AR depth preview (Quest = gpu-only, see DECISION_LOG)
+  web/
+    company_webxr_shell.html             # custom shell + CompanyWebXR* hand/depth JS bridges
+
+addons/godot_xr_hands/                    # presentation, depends on toolkit only
+  plugin.cfg / plugin.gd
+  runtime/
+    hand_visualizer.gd                   # procedural joints+bones; optional WebXR bridge
 ```
 
-All runtime classes use `class_name`, so the addon works without enabling the
-editor plugin (the plugin only adds editor conveniences).
+`OpenXRInputAdapter` (deferred) would live alongside `WebXRInputAdapter` in a
+platform kit, not in the core. All runtime classes use `class_name` (or are
+referenced by path), so each addon works without enabling its editor plugin.
 
 ## Platform reality constraints (validated on hardware)
 

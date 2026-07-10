@@ -38,3 +38,6 @@ research/performance_results/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# XR addons are consumed from the godot-webxr-suite repo (run setup.ps1).
+demo/addons/

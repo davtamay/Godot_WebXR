@@ -304,3 +304,71 @@ Godot vs Unity Web Export Feasibility Report
 9. Engineering ownership comparison
 10. Recommendation
 ```
+
+## Measured findings — material inspector build (2026-07-07)
+
+Measured, not assumed. The web download for the material inspector build:
+
+| Chunk | Size | What it is |
+|---|---|---|
+| `index.wasm` | 37.7 MB | Godot engine runtime (fixed by the stock export template) |
+| `index.pck` | 25.0 MB (uncompressed) → **13.3 MB (Basis)** | 18 material textures (1024², one 2048² normal) + scenes/scripts |
+| `index.js` | 0.3 MB | loader |
+| **total** | **62.9 → 51.2 MB** | (no transport compression) |
+
+### Texture compression (the cheap pck win — DONE)
+
+`gltf/embedded_image_handling` on `MaterialCollection.glb`:
+- `3` = Embed Uncompressed (raw): **lossless**, 25.0 MB pck. This is the committed
+  default because it preserves the Blender↔Godot 1:1 parity comparison.
+- `2` = Embed as Basis Universal (GPU-transcoded, ETC1S): **lossy**, **13.3 MB pck**
+  (−12 MB). The direct analog of Unity's Crunch/ASTC texture compression.
+
+Decision: the repo stays lossless (parity default = the "revert to 1:1" state);
+the deployed *inspector* build is a Basis variant (set embed=2, reimport, export,
+then `git checkout` the `.import` back). Texture compression is BUILD-TIME, so a
+runtime "revert to parity" button is not possible without shipping both texture
+sets; the practical revert is the lossless default build. A true runtime toggle
+would need Phase 2 streamed chunks (ship Basis in the main pck; load a lossless
+`parity_override.pck` on demand via `ProjectSettings.load_resource_pack`).
+
+### "Strip project code" — what it does and does NOT do here
+
+Unity's size magic is largely **managed (C#/IL) code stripping + IL2CPP**. Godot
+has no equivalent worth doing at the project layer: GDScript compiles to compact
+bytecode inside the pck (kilobytes), so "stripping project code" saves ~nothing.
+The 37.7 MB is the **engine wasm**, and the only lever that shrinks it is a
+**custom export template** that strips unused *engine modules* (Phase 3) — this is
+the real Godot analog of Unity's stripping.
+
+### Custom stripped export template — generalization + safeguards (Phase 3 detail)
+
+Approach (build Godot from source with scons + emscripten):
+- Disable modules the project provably does not use, e.g.:
+  `module_mono_enabled=no module_csg_enabled=no module_gridmap_enabled=no
+  module_navigation_enabled=no module_webrtc_enabled=no module_multiplayer_enabled=no
+  module_camera_enabled=no module_mobile_vr_enabled=no module_raycast_enabled=no`
+  plus `optimize=size lto=full disable_3d=no` (we DO use 3D). Expect the wasm to
+  drop meaningfully (Unity-style), at the cost of a per-Godot-version custom build.
+
+Safeguards against stripping something we use (the key risk):
+1. **Start from the full template, remove one module at a time**, re-running the
+   gate after each — never a blanket strip.
+2. **Gate = the existing headless suite (194 checks) + a scene-load pass over every
+   demo/sample scene + a web export**. If a disabled module is actually used, a
+   scene fails to load or a test fails — the CI gate catches it before ship.
+3. **Maintain a `USED_MODULES.md` allowlist** derived from what the project
+   instantiates (XR, GLTF, WebXR, physics 3D, text/Label3D, etc.); disable only
+   modules absent from it.
+4. **Keep the stock template as the fallback** and diff runtime behavior
+   (screenshot/parity) between stock and stripped builds before adopting.
+5. **Automate**: a `build_web_template.sh` (module flags + gate) so the template
+   is reproducible and re-runnable on Godot upgrades, not a one-off artifact.
+
+### Bottom line (no transport compression)
+
+- pck: texture compression gives ~12 MB (done). ~19% of the total.
+- wasm: only a custom stripped template touches the 37.7 MB (Phase 3, high effort).
+- The single highest-ROI lever remains **Brotli/Gzip transport compression**
+  (~4× on the wasm, near-zero effort) — deferred by choice, but it is precisely
+  what makes Unity web builds "load faster." Revisit first when ready.
