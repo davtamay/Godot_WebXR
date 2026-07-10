@@ -10,21 +10,22 @@
 	table { border-collapse: collapse; margin: 1rem 0; }
 	td { padding: 0.15rem 0.75rem 0.15rem 0; }
 	.ok { color: #46d67c; } .bad { color: #ff6b6b; } .warn { color: #f4c542; }
-	button { font: inherit; padding: 0.6rem 1.4rem; border-radius: 0.5rem; border: 1px solid #3a3f4a; background: #1b2027; color: inherit; cursor: pointer; }
+	button { font: inherit; padding: 0.7rem 1.6rem; border-radius: 0.5rem; border: 1px solid #3a3f4a; background: #1b2027; color: inherit; cursor: pointer; margin-right: 0.6rem; }
 	button:disabled { opacity: 0.45; cursor: default; }
 	#log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: 0.82rem; background: #0a0c0f; border-radius: 0.5rem; padding: 0.8rem; min-height: 6rem; }
 </style>
 </head>
 <body>
 <h1>WebXR + WebGPU probe (XRGPUBinding)</h1>
-<p>Tests whether this browser can render an immersive WebXR session through
-WebGPU. In the headset you should see a <b>deep blue</b> void in the left eye,
-<b>deep green</b> in the right, and a <b>spinning magenta triangle</b> fused in
-front of you. WebXR needs a secure context: use HTTPS, or
-<code>adb reverse tcp:8060 tcp:8060</code> and open
-<code>http://localhost:8060/...</code> on the headset.</p>
+<p>A compute-shader galaxy: <b>122,880 particles</b> integrated on the GPU
+every frame and drawn as additive billboards — the kind of workload WebGL
+cannot express. <b>VR</b>: the galaxy in deep space. <b>AR</b>: it floats in
+your room over passthrough. Look ~2&nbsp;m ahead, slightly up.</p>
 <table id="caps"></table>
-<button id="enter" disabled>Enter VR (WebGPU)</button>
+<p>
+<button id="enterVR" disabled>Enter VR</button>
+<button id="enterAR" disabled>Enter AR</button>
+</p>
 <h2 style="font-size:1rem">Log</h2>
 <div id="log"></div>
 <script>
@@ -54,45 +55,131 @@ capRow('WebXR (navigator.xr)', hasXR ? 'yes' : 'no', hasXR);
 capRow('XRGPUBinding (WebXR-WebGPU)', hasBinding ? 'yes' : 'no', hasBinding);
 capRow('Secure context', window.isSecureContext ? 'yes' : 'no', window.isSecureContext);
 
-const enterBtn = document.getElementById('enter');
+const vrBtn = document.getElementById('enterVR');
+const arBtn = document.getElementById('enterAR');
 
 (async () => {
 	if (!hasXR) { log('navigator.xr missing - not an XR browser.', 'bad'); return; }
 	const vr = await navigator.xr.isSessionSupported('immersive-vr').catch(() => false);
+	const ar = await navigator.xr.isSessionSupported('immersive-ar').catch(() => false);
 	capRow('immersive-vr session', vr ? 'supported' : 'unsupported', vr);
+	capRow('immersive-ar session', ar ? 'supported' : 'unsupported', ar);
 	if (!hasGPU) { log('navigator.gpu missing - enable WebGPU (Quest Browser: experimental flag).', 'bad'); return; }
 	if (!hasBinding) { log('XRGPUBinding missing - this browser cannot bind WebXR to WebGPU yet.', 'bad'); return; }
-	if (vr) {
-		enterBtn.disabled = false;
-		log('Ready. Put the headset on and press Enter VR.', 'ok');
-	}
+	vrBtn.disabled = !vr;
+	arBtn.disabled = !ar;
+	if (vr || ar) { log('Ready. Put the headset on and press Enter VR or Enter AR.', 'ok'); }
 })();
 
-const SHADER = `
-struct Uniforms { angle : f32 };
+const PARTICLE_COUNT = 122880; // 960 workgroups of 128.
+
+const RENDER_SHADER = `
+struct Uniforms {
+	viewProj : mat4x4f,
+	right : vec4f, // w = time
+	up : vec4f, // w = base particle size
+};
 @group(0) @binding(0) var<uniform> u : Uniforms;
+@group(0) @binding(1) var<storage, read> particles : array<vec4f>;
+
+struct VSOut {
+	@builtin(position) pos : vec4f,
+	@location(0) color : vec3f,
+	@location(1) uv : vec2f,
+};
+
+fn hue_to_rgb(h : f32) -> vec3f {
+	let k = fract(vec3f(h, h + 0.333, h + 0.667));
+	return clamp(abs(k * 6.0 - 3.0) - 1.0, vec3f(0.0), vec3f(1.0));
+}
 
 @vertex
-fn vs(@builtin(vertex_index) i : u32) -> @builtin(position) vec4f {
-	// Equilateral-ish triangle ~1.5m ahead, spun around Z.
-	var p = array<vec2f, 3>(vec2f(0.0, 0.35), vec2f(-0.3, -0.25), vec2f(0.3, -0.25));
-	let c = cos(u.angle);
-	let s = sin(u.angle);
-	let v = vec2f(p[i].x * c - p[i].y * s, p[i].x * s + p[i].y * c);
-	// NDC-ish placement; good enough for a visual probe (no view/projection
-	// matrices: the triangle is head-locked, which also proves per-eye
-	// rendering distinctly - it must appear fused, not doubled).
-	return vec4f(v.x, v.y, -0.5, 1.0);
+fn vs(@builtin(vertex_index) vi : u32, @builtin(instance_index) ii : u32) -> VSOut {
+	var corners = array<vec2f, 6>(
+		vec2f(-1.0, -1.0), vec2f(1.0, -1.0), vec2f(-1.0, 1.0),
+		vec2f(-1.0, 1.0), vec2f(1.0, -1.0), vec2f(1.0, 1.0));
+	let p = particles[ii];
+	let c = corners[vi];
+	let size = u.up.w * (0.75 + 0.5 * fract(p.w * 61.7));
+	let world = p.xyz + (u.right.xyz * c.x + u.up.xyz * c.y) * size;
+	var out : VSOut;
+	out.pos = u.viewProj * vec4f(world, 1.0);
+	// Hue drifts slowly per-particle; inner particles run hotter.
+	let hue = fract(p.w + u.right.w * 0.015);
+	out.color = mix(hue_to_rgb(hue), vec3f(1.0, 0.9, 0.75), 0.25);
+	out.uv = c;
+	return out;
 }
 
 @fragment
-fn fs() -> @location(0) vec4f {
-	return vec4f(0.9, 0.2, 0.9, 1.0);
+fn fs(in : VSOut) -> @location(0) vec4f {
+	let d = dot(in.uv, in.uv);
+	if (d > 1.0) { discard; }
+	let a = (1.0 - d) * (1.0 - d);
+	return vec4f(in.color * a, a);
 }
 `;
 
-enterBtn.addEventListener('click', async () => {
-	enterBtn.disabled = true;
+const COMPUTE_SHADER = `
+@group(0) @binding(0) var<storage, read_write> particles : array<vec4f>;
+struct Sim { timeDt : vec4f }; // x = time, y = dt
+@group(0) @binding(1) var<uniform> sim : Sim;
+
+const CENTER = vec3f(0.0, 1.3, -2.0);
+
+@compute @workgroup_size(128)
+fn cs(@builtin(global_invocation_id) gid : vec3u) {
+	let i = gid.x;
+	if (i >= ${PARTICLE_COUNT}u) { return; }
+	var p = particles[i];
+	var d = p.xyz - CENTER;
+	// Keplerian-ish swirl: inner particles orbit faster.
+	let r = max(length(vec2f(d.x, d.z)), 0.02);
+	let ang = sim.timeDt.y * (0.55 / (0.15 + r));
+	let ca = cos(ang);
+	let sa = sin(ang);
+	let x = d.x * ca - d.z * sa;
+	let z = d.x * sa + d.z * ca;
+	// Gentle vertical breathing, phase-offset per particle.
+	let y = d.y + sin(sim.timeDt.x * 0.8 + p.w * 251.0) * 0.0009;
+	particles[i] = vec4f(CENTER + vec3f(x, y, z), p.w);
+}
+`;
+
+function makeGalaxy(count) {
+	const data = new Float32Array(count * 4);
+	for (let i = 0; i < count; i++) {
+		// Logarithmic spiral arms with gaussian scatter.
+		const arm = i % 3;
+		const t = Math.random();
+		const r = 0.06 + 1.15 * Math.pow(t, 0.6);
+		const swirl = t * 4.2 + arm * (Math.PI * 2 / 3);
+		const scatter = 0.05 + 0.11 * t;
+		const g = () => (Math.random() + Math.random() + Math.random() - 1.5) * scatter;
+		data[i * 4 + 0] = Math.cos(swirl) * r + g();
+		data[i * 4 + 1] = 1.3 + g() * 0.35;
+		data[i * 4 + 2] = -2.0 + Math.sin(swirl) * r + g();
+		data[i * 4 + 3] = t; // radius parameter doubles as hue/phase seed
+	}
+	return data;
+}
+
+function mat4Multiply(a, b) {
+	// Column-major a*b.
+	const out = new Float32Array(16);
+	for (let c = 0; c < 4; c++) {
+		for (let rIdx = 0; rIdx < 4; rIdx++) {
+			out[c * 4 + rIdx] = a[rIdx] * b[c * 4] + a[4 + rIdx] * b[c * 4 + 1] + a[8 + rIdx] * b[c * 4 + 2] + a[12 + rIdx] * b[c * 4 + 3];
+		}
+	}
+	return out;
+}
+
+let activeSession = null;
+
+async function enterXR(mode) {
+	vrBtn.disabled = true;
+	arBtn.disabled = true;
 	try {
 		const adapter = await navigator.gpu.requestAdapter({ xrCompatible: true });
 		if (!adapter) { log('requestAdapter({xrCompatible:true}) returned null.', 'bad'); return; }
@@ -101,73 +188,154 @@ enterBtn.addEventListener('click', async () => {
 
 		let session;
 		try {
-			session = await navigator.xr.requestSession('immersive-vr', { requiredFeatures: ['webgpu'] });
+			session = await navigator.xr.requestSession(mode, { requiredFeatures: ['webgpu'] });
 		} catch (e) {
 			log(`requestSession with required 'webgpu' failed (${e.message}); retrying without it...`, 'warn');
-			session = await navigator.xr.requestSession('immersive-vr');
+			session = await navigator.xr.requestSession(mode);
 		}
-		log('Session started.', 'ok');
-		session.addEventListener('end', () => { log('Session ended.'); enterBtn.disabled = false; });
+		activeSession = session;
+		log(`${mode} session started.`, 'ok');
+		session.addEventListener('end', () => {
+			log('Session ended.');
+			activeSession = null;
+			vrBtn.disabled = false;
+			arBtn.disabled = false;
+		});
 
 		const binding = new XRGPUBinding(session, device);
 		const colorFormat = binding.getPreferredColorFormat ? binding.getPreferredColorFormat() : 'rgba8unorm';
-		log(`XRGPUBinding created; color format: ${colorFormat}`, 'ok');
+		log(`XRGPUBinding OK; color format: ${colorFormat}; particles: ${PARTICLE_COUNT}`, 'ok');
 		const layer = binding.createProjectionLayer({ colorFormat });
 		session.updateRenderState({ layers: [layer] });
 
 		const refSpace = await session.requestReferenceSpace('local');
 
-		const module = device.createShaderModule({ code: SHADER });
-		const uniformBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-		const pipeline = device.createRenderPipeline({
-			layout: 'auto',
-			vertex: { module, entryPoint: 'vs' },
-			fragment: { module, entryPoint: 'fs', targets: [{ format: colorFormat }] },
-			primitive: { topology: 'triangle-list' },
+		// Particle storage buffer, seeded with the spiral galaxy.
+		const particleBuffer = device.createBuffer({
+			size: PARTICLE_COUNT * 16,
+			usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST,
 		});
-		const bindGroup = device.createBindGroup({
-			layout: pipeline.getBindGroupLayout(0),
-			entries: [{ binding: 0, resource: { buffer: uniformBuffer } }],
+		device.queue.writeBuffer(particleBuffer, 0, makeGalaxy(PARTICLE_COUNT));
+
+		// Compute pipeline: integrates the swirl each frame.
+		const simBuffer = device.createBuffer({ size: 16, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+		const computePipeline = device.createComputePipeline({
+			layout: 'auto',
+			compute: { module: device.createShaderModule({ code: COMPUTE_SHADER }), entryPoint: 'cs' },
+		});
+		const computeBindGroup = device.createBindGroup({
+			layout: computePipeline.getBindGroupLayout(0),
+			entries: [
+				{ binding: 0, resource: { buffer: particleBuffer } },
+				{ binding: 1, resource: { buffer: simBuffer } },
+			],
 		});
 
+		// Render pipeline: additive billboards (no depth needed).
+		const renderModule = device.createShaderModule({ code: RENDER_SHADER });
+		const renderPipeline = device.createRenderPipeline({
+			layout: 'auto',
+			vertex: { module: renderModule, entryPoint: 'vs' },
+			fragment: {
+				module: renderModule,
+				entryPoint: 'fs',
+				targets: [{
+					format: colorFormat,
+					blend: {
+						color: { srcFactor: 'one', dstFactor: 'one' },
+						alpha: { srcFactor: 'one', dstFactor: 'one' },
+					},
+				}],
+			},
+			primitive: { topology: 'triangle-list' },
+		});
+
+		// One uniform buffer + bind group per eye: queued writeBuffer calls all
+		// execute before the submit, so a shared buffer would leak the second
+		// eye's matrices into the first eye's pass.
+		const eyeUniforms = [0, 1].map(() => {
+			const buffer = device.createBuffer({ size: 96, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+			const group = device.createBindGroup({
+				layout: renderPipeline.getBindGroupLayout(0),
+				entries: [
+					{ binding: 0, resource: { buffer } },
+					{ binding: 1, resource: { buffer: particleBuffer } },
+				],
+			});
+			return { buffer, group };
+		});
+
+		const clearValue = mode === 'immersive-ar'
+			? { r: 0, g: 0, b: 0, a: 0 } // Transparent: passthrough shows.
+			: { r: 0.004, g: 0.006, b: 0.02, a: 1 };
+
 		let frames = 0;
+		let lastT = 0;
 		const start = performance.now();
 		session.requestAnimationFrame(function onFrame(t, frame) {
 			session.requestAnimationFrame(onFrame);
 			const pose = frame.getViewerPose(refSpace);
 			if (!pose) { return; }
+			const time = (t - start) * 0.001;
+			const dt = Math.min(lastT ? time - lastT : 0.011, 0.05);
+			lastT = time;
 
-			device.queue.writeBuffer(uniformBuffer, 0, new Float32Array([(t - start) * 0.002]));
+			device.queue.writeBuffer(simBuffer, 0, new Float32Array([time, dt, 0, 0]));
+			const uniformScratch = new Float32Array(24);
+			pose.views.forEach((view, i) => {
+				if (i > 1) { return; }
+				const viewProj = mat4Multiply(view.projectionMatrix, view.transform.inverse.matrix);
+				const cam = view.transform.matrix;
+				uniformScratch.set(viewProj, 0);
+				uniformScratch.set([cam[0], cam[1], cam[2], 0], 16); // right
+				uniformScratch.set([cam[4], cam[5], cam[6], 0], 20); // up
+				// time + base particle size ride in the spare row.
+				uniformScratch[19] = time;
+				uniformScratch[23] = 0.0065;
+				device.queue.writeBuffer(eyeUniforms[i].buffer, 0, uniformScratch);
+			});
+
 			const encoder = device.createCommandEncoder();
-			for (const view of pose.views) {
+			const compute = encoder.beginComputePass();
+			compute.setPipeline(computePipeline);
+			compute.setBindGroup(0, computeBindGroup);
+			compute.dispatchWorkgroups(PARTICLE_COUNT / 128);
+			compute.end();
+
+			pose.views.forEach((view, i) => {
+				if (i > 1) { return; }
 				const sub = binding.getViewSubImage(layer, view);
 				const pass = encoder.beginRenderPass({
 					colorAttachments: [{
 						view: sub.colorTexture.createView(sub.getViewDescriptor ? sub.getViewDescriptor() : undefined),
 						loadOp: 'clear',
 						storeOp: 'store',
-						clearValue: view.eye === 'right' ? { r: 0.02, g: 0.12, b: 0.03, a: 1 } : { r: 0.02, g: 0.04, b: 0.14, a: 1 },
+						clearValue,
 					}],
 				});
 				const vp = sub.viewport;
 				pass.setViewport(vp.x, vp.y, vp.width, vp.height, 0, 1);
-				pass.setPipeline(pipeline);
-				pass.setBindGroup(0, bindGroup);
-				pass.draw(3);
+				pass.setPipeline(renderPipeline);
+				pass.setBindGroup(0, eyeUniforms[i].group);
+				pass.draw(6, PARTICLE_COUNT);
 				pass.end();
-			}
+			});
 			device.queue.submit([encoder.finish()]);
 
 			frames += 1;
-			if (frames === 90) {
-				log(`90 frames rendered through XRGPUBinding (views: ${pose.views.length}).`, 'ok');
+			if (frames === 180) {
+				log(`180 frames: ${PARTICLE_COUNT} compute-integrated particles per frame, ${pose.views.length} views.`, 'ok');
 			}
 		});
 	} catch (e) {
 		log('FAILED: ' + (e && e.message ? e.message : e), 'bad');
-		enterBtn.disabled = false;
+		vrBtn.disabled = false;
+		arBtn.disabled = false;
 	}
-});
+}
+
+vrBtn.addEventListener('click', () => enterXR('immersive-vr'));
+arBtn.addEventListener('click', () => enterXR('immersive-ar'));
 </script>
 </body>
 </html>
