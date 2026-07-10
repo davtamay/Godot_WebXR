@@ -3,6 +3,9 @@ extends Node
 ## Demo-side visual feedback for one interactable. The toolkit only emits
 ## hover/select/activate signals; highlight materials are the consumer's job.
 
+## Preloaded so the shader baker can precompile it for web/WebGPU exports.
+const AFFORDANCE_MATERIAL := preload("res://scripts/affordance_material.tres")
+
 @export var interactable_path: NodePath
 @export var mesh_path: NodePath
 @export var status_label_path: NodePath
@@ -38,9 +41,10 @@ func _ready() -> void:
         _interactable.activate_exited.connect(_on_activate_exited)
 
 func _make_material(color: Color) -> StandardMaterial3D:
-    var material := StandardMaterial3D.new()
+    # Duplicate of a baked .tres; colors/energy are uniforms, so the baked
+    # shader hash is kept.
+    var material := AFFORDANCE_MATERIAL.duplicate() as StandardMaterial3D
     material.albedo_color = color
-    material.emission_enabled = true
     material.emission = color
     material.emission_energy_multiplier = 0.65
     return material

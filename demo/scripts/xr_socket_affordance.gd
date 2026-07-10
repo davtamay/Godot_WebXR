@@ -2,6 +2,9 @@ extends Node
 
 ## Demo-side visual feedback for XRSocketInteractor state.
 
+## Preloaded so the shader baker can precompile it for web/WebGPU exports.
+const SOCKET_MATERIAL := preload("res://scripts/socket_affordance_material.tres")
+
 @export var socket_path: NodePath
 @export var pad_mesh_path: NodePath
 @export var status_label_path: NodePath
@@ -42,12 +45,12 @@ func _process(_delta: float) -> void:
 	_set_status_for_state(state_name, selected, candidate)
 
 func _make_material(color: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
+	# Duplicate of a baked .tres; colors/energy/roughness are uniforms, so the
+	# baked shader hash is kept.
+	var material := SOCKET_MATERIAL.duplicate() as StandardMaterial3D
 	material.albedo_color = color
-	material.emission_enabled = true
 	material.emission = color
 	material.emission_energy_multiplier = 0.55
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.roughness = 0.42
 	return material
 
