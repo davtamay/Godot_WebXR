@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://shaders/galaxy_process.gdshader" id="1_shader"]
+
+[resource]
+shader = ExtResource("1_shader")
+shader_parameter/radius = 1.7
+shader_parameter/twist = 4.5
+shader_parameter/rotation_speed = 0.03
+shader_parameter/thickness = 0.22
+shader_parameter/star_size = 0.012

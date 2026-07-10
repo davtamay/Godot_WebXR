@@ -8,6 +8,7 @@ extends Control
 const MATERIAL_SCENE := "res://addons/godot_blender_principled/samples/material_inspect_xr.tscn"
 const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
 const TOOLKIT_SCENE := "res://scenes/Main.tscn"
+const GALAXY_SCENE := "res://scenes/galaxy.tscn"
 
 ## Material assets live in this streamed bundle, served next to index.html.
 const MATERIAL_PCK := "material.pck"
@@ -41,6 +42,8 @@ func _ready() -> void:
 		_streamer.open(BENCHMARK_SCENE))
 	_add_button(vbox, "XR Interaction Lab", func() -> void:
 		_streamer.open(TOOLKIT_SCENE))
+	_add_button(vbox, "WebGPU Galaxy  (50k GPU stars)", func() -> void:
+		_streamer.open(GALAXY_SCENE))
 
 func _add_button(parent: Node, text: String, on_press: Callable) -> void:
 	var b := Button.new()
