@@ -8,7 +8,7 @@
 # Bump $SuiteRef to consume a newer suite release. Use "master" to track
 # latest during active development.
 
-$SuiteRef = "v1.3.1"
+$SuiteRef = "v1.3.5"
 $SuiteUrl = "https://github.com/davtamay/godot-webxr-suite.git"
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
