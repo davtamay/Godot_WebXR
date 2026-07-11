@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<!--
+Minimal repro: on Android XR (Galaxy XR, Chrome 150), DECLARING the WebXR
+'layers' feature in requestSession triggers a 2-3 second head-locked system
+transition (grey grid room) before every immersive session - even though
+Chromium serves projection layers WITHOUT the declaration (this page uses
+XRWebGLBinding.createProjectionLayer either way). Toggle the M-comment on
+the optionalFeatures line to compare. Quest Browser shows no ceremony in
+either case. Found 2026-07-11 by feature-set bisection; the godot-webxr-suite
+stopped declaring 'layers' in webxr_bootstrap.gd for this reason - re-add
+conditionally only if quad/cylinder layers are adopted, or once Android XR
+drops the ceremony. The say() helper posts to /log when served by a tap
+server; harmless otherwise.
+-->
+
+<html>
+<body style="margin:0">
+<canvas id="c" style="width:100vw;height:70vh;display:block"></canvas>
+<button id="ar" style="font-size:2em;padding:0.5em 2em;margin:0.5em">Enter AR (same ctx)</button>
+<button id="ar2" style="font-size:2em;padding:0.5em 2em">Enter AR (fresh ctx)</button>
+<div id="s" style="font-family:sans-serif;padding:0.5em">mini repro</div>
+<script>
+const say = (t) => { document.getElementById('s').textContent = t; try { fetch('/log', { method: 'POST', body: '[MINI] ' + t }); } catch (e) {} };
+const canvas = document.getElementById('c');
+canvas.width = 1280; canvas.height = 720;
+const gl = canvas.getContext('webgl2', { alpha: true, antialias: false, depth: true, stencil: true, preserveDrawingBuffer: true, powerPreference: 'high-performance' }); // M1
+// M2: compile the real 50MB engine wasm and keep it resident.
+WebAssembly.compileStreaming(fetch('/index.wasm')).then((m) => { window.__mod = m; say('M2: 50MB wasm compiled + resident'); }).catch((e) => say('M2 failed: ' + e));
+let t = 0;
+(function loop() { t += 0.016; gl.clearColor(0.2, Math.sin(t) * 0.5 + 0.5, 0.5, 1); gl.clear(gl.COLOR_BUFFER_BIT); const end = performance.now() + 10; let x = 0; while (performance.now() < end) { x += Math.sqrt(x + 1); } requestAnimationFrame(loop); })();
+
+async function enter(useSameCtx) {
+	try {
+		const ctx = useSameCtx ? gl : document.createElement('canvas').getContext('webgl2', { xrCompatible: true });
+		if (useSameCtx) { await ctx.makeXRCompatible(); }
+		const t0 = performance.now();
+		const session = await navigator.xr.requestSession('immersive-ar', { requiredFeatures: ['local'], optionalFeatures: ['layers'] }); // M13
+		say('granted +' + Math.round(performance.now() - t0) + 'ms');
+		const binding = new XRWebGLBinding(session, ctx);
+		const layer = binding.createProjectionLayer({ colorFormat: ctx.RGBA8 });
+		session.updateRenderState({ layers: [layer] });
+		const space = await session.requestReferenceSpace('local');
+		let first = true;
+		const onFrame = (time, frame) => {
+			session.requestAnimationFrame(onFrame);
+			const pose = frame.getViewerPose(space);
+			if (!pose) { return; }
+			for (const view of pose.views) {
+				const sub = binding.getViewSubImage(layer, view);
+				const fbo = ctx.createFramebuffer();
+				ctx.bindFramebuffer(ctx.FRAMEBUFFER, fbo);
+				ctx.framebufferTexture2D(ctx.FRAMEBUFFER, ctx.COLOR_ATTACHMENT0, ctx.TEXTURE_2D, sub.colorTexture, 0);
+				const vp = sub.viewport;
+				ctx.enable(ctx.SCISSOR_TEST);
+				ctx.viewport(vp.x, vp.y, vp.width, vp.height);
+				ctx.scissor(vp.x, vp.y, vp.width, vp.height);
+				ctx.clearColor(0.1, 0.7, 0.2, 1);
+				ctx.clear(ctx.COLOR_BUFFER_BIT);
+				ctx.disable(ctx.SCISSOR_TEST);
+				ctx.bindFramebuffer(ctx.FRAMEBUFFER, null);
+				ctx.deleteFramebuffer(fbo);
+			}
+			if (first) { first = false; say('first XR frame rendered'); }
+		};
+		session.requestAnimationFrame(onFrame);
+		session.addEventListener('end', () => say('session ended'));
+	} catch (e) { say('failed: ' + e); }
+}
+document.getElementById('ar').onclick = () => enter(true);
+document.getElementById('ar2').onclick = () => enter(false);
+</script>
+</body>
+</html>
