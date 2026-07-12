@@ -1,18 +1,12 @@
 extends Control
 
-## Bare-bones launcher: the tiny main scene the browser reaches first. Heavy
-## content (the material collection) is streamed on demand as a separate bundle
-## pck, so the initial load is just the engine + this menu instead of stalling on
-## the full asset payload.
+## Bare-bones launcher: the tiny main scene the browser reaches first. Each
+## button opens a WebXR sample scene on demand.
 
-const MATERIAL_SCENE := "res://addons/godot_blender_principled/samples/material_inspect_xr.tscn"
 const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
 const TOOLKIT_SCENE := "res://scenes/Main.tscn"
-const GALAXY_SCENE := "res://scenes/galaxy.tscn"
 const SCENE_UNDERSTANDING_SCENE := "res://addons/godot_webxr_scene_understanding/samples/scene_understanding_demo.tscn"
-
-## Material assets live in this streamed bundle, served next to index.html.
-const MATERIAL_PCK := "material.pck"
+const GALAXY_SCENE := "res://scenes/galaxy.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -28,25 +22,22 @@ func _ready() -> void:
 	add_child(vbox)
 
 	var title := Label.new()
-	title.text = "Godot WebXR Feasibility — choose a scene"
+	title.text = "Godot WebXR Samples — choose a scene"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(title)
 
 	_status = Label.new()
-	_status.text = "Base loaded. Heavy assets stream on demand."
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_status)
 
-	_add_button(vbox, "Material Inspector  (streams ~22 MB bundle)", func() -> void:
-		_streamer.open(MATERIAL_SCENE, MATERIAL_PCK, MATERIAL_PCK))
-	_add_button(vbox, "VR Stress Benchmark", func() -> void:
-		_streamer.open(BENCHMARK_SCENE))
-	_add_button(vbox, "XR Interaction Lab", func() -> void:
+	_add_button(vbox, "XR Interaction Toolkit", func() -> void:
 		_streamer.open(TOOLKIT_SCENE))
-	_add_button(vbox, "WebGPU Galaxy  (50k GPU stars)", func() -> void:
-		_streamer.open(GALAXY_SCENE))
+	_add_button(vbox, "Performance  (VR stress benchmark)", func() -> void:
+		_streamer.open(BENCHMARK_SCENE))
 	_add_button(vbox, "Scene Understanding  (room mesh / labels / occlusion / depth)", func() -> void:
 		_streamer.open(SCENE_UNDERSTANDING_SCENE))
+	_add_button(vbox, "WebGPU Galaxy  (50k GPU stars)", func() -> void:
+		_streamer.open(GALAXY_SCENE))
 
 func _add_button(parent: Node, text: String, on_press: Callable) -> void:
 	var b := Button.new()

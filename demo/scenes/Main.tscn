@@ -2,8 +2,6 @@
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
-[ext_resource type="Script" path="res://addons/godot_webxr_scene_understanding/runtime/webxr_mesh_bridge.gd" id="2_meshbridge"]
-[ext_resource type="Script" path="res://addons/godot_webxr_scene_understanding/runtime/webxr_occluder.gd" id="2_occluder"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
 [ext_resource type="Script" path="res://addons/godot_xr_hands/runtime/hand_visualizer.gd" id="4_hands"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd" id="5_manager"]
@@ -170,17 +168,7 @@ interaction_layers = 3
 
 [node name="XROrigin3D" type="XROrigin3D" parent="."]
 
-[node name="MeshBridge" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("2_meshbridge")
-generate_collision = false
-
 [node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
-
-[node name="Occluder" type="MeshInstance3D" parent="XROrigin3D/XRCamera3D"]
-script = ExtResource("2_occluder")
-transform = Transform3D(1, 0, 0, 0, 0.965926, 0.258819, 0, -0.258819, 0.965926, 0, 1.6, 3)
-current = true
-fov = 70.0
 
 [node name="LeftController" type="XRController3D" parent="XROrigin3D"]
 tracker = &"left_hand"
@@ -542,20 +530,6 @@ custom_minimum_size = Vector2(0, 72)
 layout_mode = 2
 theme_override_font_sizes/font_size = 30
 text = "Press"
-
-[node name="DepthButton" type="Button" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Room Mesh"
-
-[node name="OcclusionButton" type="Button" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 64)
-layout_mode = 2
-theme_override_font_sizes/font_size = 28
-text = "Occlusion"
 
 [node name="ResetButton" type="Button" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true

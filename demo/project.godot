@@ -6,8 +6,8 @@
 config_version=5
 
 [application]
-config/name="Godot WebXR Feasibility Demo"
-run/main_scene="res://scenes/Main.tscn"
+config/name="Godot WebXR Samples"
+run/main_scene="res://scenes/launcher.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 
