@@ -2,8 +2,8 @@
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_mesh_bridge.gd" id="2_meshbridge"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_occluder.gd" id="2_occluder"]
+[ext_resource type="Script" path="res://addons/godot_webxr_scene_understanding/runtime/webxr_mesh_bridge.gd" id="2_meshbridge"]
+[ext_resource type="Script" path="res://addons/godot_webxr_scene_understanding/runtime/webxr_occluder.gd" id="2_occluder"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
 [ext_resource type="Script" path="res://addons/godot_xr_hands/runtime/hand_visualizer.gd" id="4_hands"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd" id="5_manager"]
@@ -18,7 +18,6 @@
 [ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd" id="15_screen_ray"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd" id="16_direct"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_depth_mesh_visualizer.gd" id="17_depth_mesh"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd" id="18_socket"]
 [ext_resource type="Script" path="res://scripts/xr_socket_affordance.gd" id="19_socket_affordance"]
 
@@ -199,9 +198,6 @@ status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContai
 left_fallback_pose_path = NodePath("../LeftController")
 right_fallback_pose_path = NodePath("../RightController")
 world_status_label_path = NodePath("../../XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer/StateLabel")
-
-[node name="DepthMeshVisualizer" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("17_depth_mesh")
 
 [node name="LeftDirectInteractor" type="Node3D" parent="XROrigin3D"]
 script = ExtResource("16_direct")

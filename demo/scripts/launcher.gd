@@ -9,6 +9,7 @@ const MATERIAL_SCENE := "res://addons/godot_blender_principled/samples/material_
 const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
 const TOOLKIT_SCENE := "res://scenes/Main.tscn"
 const GALAXY_SCENE := "res://scenes/galaxy.tscn"
+const SCENE_UNDERSTANDING_SCENE := "res://addons/godot_webxr_scene_understanding/samples/scene_understanding_demo.tscn"
 
 ## Material assets live in this streamed bundle, served next to index.html.
 const MATERIAL_PCK := "material.pck"
@@ -44,6 +45,8 @@ func _ready() -> void:
 		_streamer.open(TOOLKIT_SCENE))
 	_add_button(vbox, "WebGPU Galaxy  (50k GPU stars)", func() -> void:
 		_streamer.open(GALAXY_SCENE))
+	_add_button(vbox, "Scene Understanding  (room mesh / labels / occlusion / depth)", func() -> void:
+		_streamer.open(SCENE_UNDERSTANDING_SCENE))
 
 func _add_button(parent: Node, text: String, on_press: Callable) -> void:
 	var b := Button.new()
