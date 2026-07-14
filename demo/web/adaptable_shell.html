@@ -111,6 +111,17 @@ body {
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+// Renderer preference, set by the in-app menu (WebXRRenderer.switch_to).
+// Default WebGL for full feature support (depth sensing / occlusion); only an
+// explicit "webgpu" keeps the adaptive WebGPU path on. __godotWebGPUCapable
+// tells the menu whether this build can offer WebGPU at all (the experimentalWebGPU
+// key exists only in WebGPU-driver exports) so stock builds stay WebGL-only.
+try {
+	window.__godotWebGPUCapable = !!(navigator.gpu && ('experimentalWebGPU' in GODOT_CONFIG) && ('XRGPUBinding' in window));
+	if ((localStorage.getItem('godot_renderer') || '') !== 'webgpu') {
+		GODOT_CONFIG['experimentalWebGPU'] = false;
+	}
+} catch (e) {}
 const engine = new Engine(GODOT_CONFIG);
 
 (function () {

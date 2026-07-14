@@ -50,6 +50,52 @@ func _ready() -> void:
 	_add_button(vbox, "Micro-Gestures  (thumb-tap locomotion)", func() -> void:
 		_streamer.open(MICROGESTURE_DEMO))
 
+	_add_renderer_chip()
+
+## Explicit renderer selector, top-right. Shown only where WebGPU is actually
+## available for XR in this build (WebXRRenderer.webgpu_supported() -> false on
+## stock/gl builds and on browsers without WebGPU-XR). Switching saves a
+## preference and reloads: the graphics backend is a boot decision, since an
+## HTML canvas is locked to its first getContext type.
+func _add_renderer_chip() -> void:
+	if not WebXRRenderer.webgpu_supported():
+		return
+	var active := WebXRRenderer.active()
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	box.offset_left = -300.0
+	box.offset_top = 12.0
+	box.offset_right = -12.0
+	box.add_theme_constant_override("separation", 4)
+	add_child(box)
+
+	var head := Label.new()
+	head.text = "Renderer: " + active.to_upper()
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	box.add_child(head)
+
+	var note := Label.new()
+	note.text = WebXRRenderer.coverage_note(active)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.custom_minimum_size = Vector2(288, 0)
+	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	note.modulate = Color(1, 1, 1, 0.7)
+	box.add_child(note)
+
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(row)
+	for mode in ["webgl", "webgpu"]:
+		var b := Button.new()
+		b.text = mode.to_upper()
+		b.disabled = (mode == active)
+		b.custom_minimum_size = Vector2(96, 40)
+		b.pressed.connect(_switch_renderer.bind(mode))
+		row.add_child(b)
+
+func _switch_renderer(mode: String) -> void:
+	WebXRRenderer.switch_to(mode)
+
 func _add_button(parent: Node, text: String, on_press: Callable) -> void:
 	var b := Button.new()
 	b.text = text
