@@ -3,21 +3,15 @@
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
-[ext_resource type="Script" path="res://addons/godot_xr_hands/runtime/hand_visualizer.gd" id="4_hands"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd" id="5_manager"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_input_adapter.gd" id="6_adapter"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd" id="7_ray"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd" id="8_grab"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd" id="9_line"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd" id="10_reticle"]
 [ext_resource type="Script" path="res://scripts/xr_demo_affordance.gd" id="11_affordance"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="13_ui_canvas"]
 [ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd" id="15_screen_ray"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_direct_interactor.gd" id="16_direct"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd" id="18_socket"]
 [ext_resource type="Script" path="res://scripts/xr_socket_affordance.gd" id="19_socket_affordance"]
+[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/rig/webxr_rig.tscn" id="20_rig"]
+[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/openxr_bootstrap.gd" id="21_openxr"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -152,80 +146,10 @@ transform = Transform3D(0.866025, -0.25, 0.433013, 0, 0.866025, 0.5, -0.5, -0.43
 light_energy = 1.65
 shadow_enabled = true
 
-[node name="XRInteractionManager" type="Node" parent="."]
-script = ExtResource("5_manager")
+[node name="WebXRRig" parent="." instance=ExtResource("20_rig")]
 
-[node name="WebXRInputAdapter" type="Node" parent="."]
-script = ExtResource("6_adapter")
-xr_origin_path = NodePath("../XROrigin3D")
-left_controller_path = NodePath("../XROrigin3D/LeftController")
-right_controller_path = NodePath("../XROrigin3D/RightController")
-
-[node name="ScreenRayInteractor" type="Node3D" parent="."]
-script = ExtResource("15_screen_ray")
-camera_path = NodePath("../XROrigin3D/XRCamera3D")
-interaction_layers = 3
-
-[node name="XROrigin3D" type="XROrigin3D" parent="."]
-
-[node name="XRCamera3D" type="XRCamera3D" parent="XROrigin3D"]
-
-[node name="LeftController" type="XRController3D" parent="XROrigin3D"]
-tracker = &"left_hand"
-pose = &"aim"
-show_when_tracked = true
-
-[node name="RightController" type="XRController3D" parent="XROrigin3D"]
-tracker = &"right_hand"
-pose = &"aim"
-show_when_tracked = true
-
-[node name="HandVisualizer" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("4_hands")
-status_label_path = NodePath("../../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
-left_fallback_pose_path = NodePath("../LeftController")
-right_fallback_pose_path = NodePath("../RightController")
-world_status_label_path = NodePath("../../XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer/StateLabel")
-
-[node name="LeftDirectInteractor" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("16_direct")
-input_adapter_path = NodePath("../../WebXRInputAdapter")
-hand = 0
-hover_radius = 0.18
-
-[node name="RightDirectInteractor" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("16_direct")
-input_adapter_path = NodePath("../../WebXRInputAdapter")
-hand = 1
-interaction_layers = 3
-hover_radius = 0.18
-
-[node name="LeftRayInteractor" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("7_ray")
-input_adapter_path = NodePath("../../WebXRInputAdapter")
-hand = 0
-suppress_interactor_path = NodePath("../LeftDirectInteractor")
-
-[node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/LeftRayInteractor"]
-script = ExtResource("9_line")
-color = Color(0.2, 0.75, 1, 0.85)
-
-[node name="Reticle" type="MeshInstance3D" parent="XROrigin3D/LeftRayInteractor"]
-script = ExtResource("10_reticle")
-
-[node name="RightRayInteractor" type="Node3D" parent="XROrigin3D"]
-script = ExtResource("7_ray")
-input_adapter_path = NodePath("../../WebXRInputAdapter")
-hand = 1
-interaction_layers = 3
-suppress_interactor_path = NodePath("../RightDirectInteractor")
-
-[node name="LineVisual" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
-script = ExtResource("9_line")
-color = Color(1, 0.58, 0.2, 0.85)
-
-[node name="Reticle" type="MeshInstance3D" parent="XROrigin3D/RightRayInteractor"]
-script = ExtResource("10_reticle")
+[node name="OpenXRBootstrap" type="Node" parent="."]
+script = ExtResource("21_openxr")
 
 [node name="SampleEnvironment" type="Node3D" parent="."]
 
@@ -452,7 +376,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.28, -3.02)
 script = ExtResource("13_ui_canvas")
 viewport_path = NodePath("Viewport")
 panel_mesh_path = NodePath("PanelMesh")
-camera_path = NodePath("../XROrigin3D/XRCamera3D")
+camera_path = NodePath("../WebXRRig/XROrigin3D/XRCamera3D")
 panel_size = Vector2(2.1, 1.55)
 viewport_pixel_size = Vector2i(1220, 900)
 
