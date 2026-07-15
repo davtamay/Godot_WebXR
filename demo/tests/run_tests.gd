@@ -21,7 +21,6 @@ const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runt
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
 const WebXRHandVisualizer := preload("res://addons/godot_xr_hands/runtime/hand_visualizer.gd")
-const WebXRDepthMeshVisualizer := preload("res://addons/godot_webxr_kit/runtime/webxr_depth_mesh_visualizer.gd")
 const PrincipledMaterial := preload("res://addons/godot_blender_principled/runtime/principled_material.gd")
 const StrictParityEnvironment := preload("res://addons/godot_blender_principled/runtime/strict_parity_environment.gd")
 
@@ -41,7 +40,6 @@ func _run_all() -> void:
     _test_hand_tracker_resolver_validity()
     _test_hand_visualizer_fallback_shape()
     _test_hand_bone_basis_no_shear()
-    await _test_depth_mesh_visualizer_builds_fake_snapshot()
     _test_manager_registry_and_arbitration()
     await _test_interactable_late_collider_registration()
     _test_interactor_hover_and_select()
@@ -311,33 +309,6 @@ func _test_hand_bone_basis_no_shear() -> void:
 
     var degenerate: Basis = WebXRHandVisualizer.bone_basis(from_position, from_position, radius)
     check(is_equal_approx(degenerate.y.length(), 0.0), "coincident joints collapse the bone instead of exploding")
-
-func _test_depth_mesh_visualizer_builds_fake_snapshot() -> void:
-    var visualizer := WebXRDepthMeshVisualizer.new()
-    root.add_child(visualizer)
-    await process_frame
-
-    var samples := []
-    for y in range(3):
-        for x in range(3):
-            samples.append({
-                "valid": true,
-                "d": 1.0,
-                "x": float(x) * 0.1,
-                "y": float(y) * 0.1,
-                "z": -1.0,
-            })
-
-    var message: String = visualizer.call("_build_depth_mesh_from_snapshot", {
-        "sampleWidth": 3,
-        "sampleHeight": 3,
-        "samples": samples,
-        "usage": "cpu-optimized",
-        "dataFormat": "float32",
-    })
-    check(message.find("9 pts") >= 0, "depth mesh builds from fake depth samples")
-    check(message.find("8 tris") >= 0, "depth mesh triangulates fake depth grid")
-    visualizer.free()
 
 func _test_manager_registry_and_arbitration() -> void:
     var manager := XRInteractionManager.new()

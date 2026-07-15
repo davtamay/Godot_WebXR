@@ -1,17 +1,29 @@
 ; Engine configuration file.
-; Godot WebGL2/WebXR feasibility demo.
-; Runs on Godot 4.4+ (4.4.1 editor on this machine; 4.7-stable released 2026-06-18
-; is the spec target — see docs/EVIDENCE_LOG.md).
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
+"ï»¿config_version"=5
+"Ã¯Â»Â¿config_version"=5
+
+[animation]
+
+compatibility/default_parent_skeleton_in_mesh_instance_3d=true
+
 [application]
+
 config/name="Godot WebXR Samples"
 run/main_scene="res://scenes/launcher.tscn"
-config/features=PackedStringArray("4.4", "GL Compatibility")
+config/features=PackedStringArray("4.8", "GL Compatibility")
 config/icon="res://icon.svg"
 
 [display]
+
 window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
@@ -19,15 +31,20 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_xr_interaction_toolkit/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_xr_interaction_toolkit/plugin.cfg", "res://addons/godot_webgpu/plugin.cfg")
 
 [rendering]
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+
 textures/canvas_textures/default_texture_filter=0
+renderer/rendering_method="mobile"
+renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.web="mobile"
 textures/vram_compression/import_etc2_astc=true
 textures/default_filters/anisotropic_filtering_level=4
+rendering_device/driver.web="webgpu"
 
 [xr]
-openxr/enabled=false
-shaders/enabled=true
+
+openxr/enabled=true
+openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_map.tres"
+openxr/extensions/hand_tracking=true
