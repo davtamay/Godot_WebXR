@@ -41,8 +41,7 @@ func _setup_xr_rig() -> void:
 	var screen := get_node_or_null("WebXRRig/ScreenRayInteractor")
 	if screen:
 		screen.interaction_layers = 3
-	# Procedural tracked hands (soft dependency on godot_xr_hands).
-	if ResourceLoader.exists("res://addons/godot_xr_hands/runtime/hand_visualizer.gd"):
-		var hv: Node3D = load("res://addons/godot_xr_hands/runtime/hand_visualizer.gd").new()
-		hv.prefer_browser_hand_bridge = false
-		origin.add_child(hv)
+	# Procedural tracked hands via the kit's shared mount (XRHandsMount) -
+	# virtual hand meshes hide during AR passthrough (you see your REAL hands)
+	# and return in VR; hand input is unaffected.
+	origin.add_child(XRHandsMount.new())
