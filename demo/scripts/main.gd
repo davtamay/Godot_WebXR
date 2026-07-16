@@ -12,6 +12,7 @@ func _ready() -> void:
 	_refresh_capabilities()
 	add_child(BackToMenuButton.new())
 	_setup_xr_rig()
+	_wire_affordance_status()
 
 func _process(delta: float) -> void:
 	inspect_object.rotate_y(delta * _rotation_speed)
@@ -45,3 +46,31 @@ func _setup_xr_rig() -> void:
 	# virtual hand meshes hide during AR passthrough (you see your REAL hands)
 	# and return in VR; hand input is unaffected.
 	origin.add_child(XRHandsMount.new())
+
+
+func _wire_affordance_status() -> void:
+	# The highlight/socket affordances are self-contained children of their
+	# objects now; the HUD status line is demo telemetry, wired here by signal.
+	for affordance in find_children("*", "XRHighlightAffordance", true, false):
+		affordance.interaction_event.connect(_on_affordance_event.bind(affordance))
+	for socket_affordance in find_children("*", "XRSocketAffordance", true, false):
+		socket_affordance.socket_state_changed.connect(_on_socket_state_changed)
+
+
+func _on_affordance_event(event: StringName, _interactor: Node, affordance) -> void:
+	const VERBS := {
+		&"hover_entered": "Hover", &"hover_exited": "Hover exit",
+		&"select_entered": "Grab", &"select_exited": "Release",
+		&"activate_entered": "Use", &"activate_exited": "Use end",
+	}
+	status_label.text = "%s: %s" % [VERBS.get(event, str(event)), affordance.get_display_name()]
+
+
+func _on_socket_state_changed(state: StringName, selected: Node, candidate: Node) -> void:
+	match state:
+		&"hovering":
+			status_label.text = "Socket hover: %s" % (candidate.name if candidate else "")
+		&"occupied":
+			status_label.text = "Socket occupied: %s" % (selected.name if selected else "")
+		&"disabled":
+			status_label.text = "Socket disabled"

@@ -4,12 +4,12 @@
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd" id="8_grab"]
-[ext_resource type="Script" path="res://scripts/xr_demo_affordance.gd" id="11_affordance"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_highlight_affordance.gd" id="11_affordance"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="13_ui_canvas"]
 [ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd" id="18_socket"]
-[ext_resource type="Script" path="res://scripts/xr_socket_affordance.gd" id="19_socket_affordance"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_affordance.gd" id="19_socket_affordance"]
 [ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/rig/webxr_rig.tscn" id="20_rig"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/openxr_bootstrap.gd" id="21_openxr"]
 
@@ -351,11 +351,8 @@ require_snap_to_attach = true
 mesh = SubResource("CylinderMesh_socket")
 surface_material_override/0 = SubResource("Material_socket")
 
-[node name="SocketAffordance" type="Node" parent="."]
+[node name="SocketAffordance" type="Node" parent="SocketInteractor"]
 script = ExtResource("19_socket_affordance")
-socket_path = NodePath("../SocketInteractor")
-pad_mesh_path = NodePath("../SocketInteractor/Pad")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 
 [node name="HoverTarget" type="Node3D" parent="."]
 transform = Transform3D(0.965926, 0, -0.258819, 0, 1, 0, 0.258819, 0, 0.965926, 2.55, 1.25, -3.05)
@@ -504,53 +501,32 @@ status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer
 inspect_object_path = NodePath("../InspectObject/Mesh")
 world_environment_path = NodePath("../WorldEnvironment")
 
-[node name="DemoAffordanceInstant" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="InspectObject"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../InspectObject")
-mesh_path = NodePath("../InspectObject/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Instant Grab Cube"
 
-[node name="DemoAffordanceSmooth" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="SmoothGrab"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../SmoothGrab")
-mesh_path = NodePath("../SmoothGrab/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Smooth Follow Sphere"
 
-[node name="DemoAffordanceRotation" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="RotationGrab"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../RotationGrab")
-mesh_path = NodePath("../RotationGrab/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Rotation Follow Cylinder"
 
-[node name="DemoAffordanceSnap" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="SnapGripGrab"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../SnapGripGrab")
-mesh_path = NodePath("../SnapGripGrab/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Snap Grip Cube"
 
-[node name="DemoAffordanceLayer" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="LayerTwoGrab"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../LayerTwoGrab")
-mesh_path = NodePath("../LayerTwoGrab/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Layer Filtered Cube"
 
-[node name="DemoAffordancePhysicsPull" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="PhysicsPullGrab"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../PhysicsPullGrab")
-mesh_path = NodePath("../PhysicsPullGrab/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Throw Spin Box"
 
-[node name="DemoAffordanceHover" type="Node" parent="."]
+[node name="Highlight" type="Node" parent="HoverTarget"]
 script = ExtResource("11_affordance")
-interactable_path = NodePath("../HoverTarget")
-mesh_path = NodePath("../HoverTarget/Mesh")
-status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer/StatusLabel")
 display_name = "Hover Use Panel"
 
 [node name="CanvasLayer" type="CanvasLayer" parent="." groups=["xr_session_hidden"]]
