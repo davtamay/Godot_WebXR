@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_affordance.gd" id="19_socket_affordance"]
 [ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/rig/webxr_rig.tscn" id="20_rig"]
 [ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/openxr_bootstrap.gd" id="21_openxr"]
+[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_microgesture_locomotion_driver.gd" id="90_microloco"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -586,3 +587,6 @@ autowrap_mode = 3
 [node name="BrowserCapabilities" type="Control" parent="CanvasLayer"]
 script = ExtResource("3_caps")
 output_label_path = NodePath("../Panel/MarginContainer/VBoxContainer/CapsLabel")
+
+[node name="XRMicrogestureLocomotionDriver" type="Node" parent="."]
+script = ExtResource("90_microloco")
