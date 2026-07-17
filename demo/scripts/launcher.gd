@@ -46,8 +46,6 @@ func _ready() -> void:
 		_streamer.open(LIGHT_ESTIMATION_SCENE))
 	_add_button(vbox, "Hit Test + Anchors  (stable AR placement)", func() -> void:
 		_streamer.open(HIT_TEST_ANCHORS_SCENE))
-	_add_button(vbox, "Hand Gestures  (gesture diagnostics)", func() -> void:
-		_streamer.open(GESTURE_DEMO))
 	_add_button(vbox, "Micro-Gestures  (thumb-tap locomotion)", func() -> void:
 		_streamer.open(MICROGESTURE_DEMO))
 	_add_button(vbox, "Gesture Playground  (data-driven poses, record your own soon)", func() -> void:
