@@ -48,3 +48,4 @@ rendering_device/driver.web="webgpu"
 openxr/enabled=true
 openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_map.tres"
 openxr/extensions/hand_tracking=true
+openxr/extensions/meta/simultaneous_hands_and_controllers=true
