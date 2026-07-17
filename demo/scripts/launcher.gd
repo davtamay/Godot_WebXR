@@ -10,7 +10,7 @@ const LIGHT_ESTIMATION_SCENE := "res://addons/godot_webxr_scene_understanding/sa
 const HIT_TEST_ANCHORS_SCENE := "res://addons/godot_webxr_scene_understanding/samples/hit_test_anchors_demo.tscn"
 const GESTURE_DEMO := "res://addons/godot_xr_hands/samples/gesture_diagnostics_demo.tscn"
 const MICROGESTURE_DEMO := "res://addons/godot_xr_hands/samples/microgesture_locomotion_demo.tscn"
-const GESTURE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/gesture_playground_demo.tscn"
+const GESTURE_PLAYGROUND := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
 const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke_playground_demo.tscn"
 
 var _streamer: SceneStreamer
