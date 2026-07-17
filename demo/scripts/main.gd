@@ -42,10 +42,13 @@ func _setup_xr_rig() -> void:
 	var screen := get_node_or_null("WebXRRig/ScreenRayInteractor")
 	if screen:
 		screen.interaction_layers = 3
-	# Procedural tracked hands via the kit's shared mount (XRHandsMount) -
-	# virtual hand meshes hide during AR passthrough (you see your REAL hands)
-	# and return in VR; hand input is unaffected.
-	origin.add_child(XRHandsMount.new())
+	# Tracked hands via the kit's shared mount (XRHandsMount) - REALISTIC
+	# style: the bundled WebXR Input Profiles rigged hand mesh skinned to the
+	# tracked joints. Virtual hand meshes hide during AR passthrough (you see
+	# your REAL hands) and return in VR; hand input is unaffected.
+	var hands_mount := XRHandsMount.new()
+	hands_mount.hand_style = XRHandsMount.HandStyle.REALISTIC
+	origin.add_child(hands_mount)
 
 
 func _wire_affordance_status() -> void:
