@@ -11,6 +11,7 @@ const HIT_TEST_ANCHORS_SCENE := "res://addons/godot_webxr_scene_understanding/sa
 const GESTURE_DEMO := "res://addons/godot_xr_hands/samples/gesture_diagnostics_demo.tscn"
 const MICROGESTURE_DEMO := "res://addons/godot_xr_hands/samples/microgesture_locomotion_demo.tscn"
 const GESTURE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/gesture_playground_demo.tscn"
+const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke_playground_demo.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -48,8 +49,10 @@ func _ready() -> void:
 		_streamer.open(HIT_TEST_ANCHORS_SCENE))
 	_add_button(vbox, "Micro-Gestures  (thumb-tap locomotion)", func() -> void:
 		_streamer.open(MICROGESTURE_DEMO))
-	_add_button(vbox, "Gesture Playground  (data-driven poses, record your own soon)", func() -> void:
+	_add_button(vbox, "Gesture Studio  (record, name, and practice your own poses)", func() -> void:
 		_streamer.open(GESTURE_PLAYGROUND))
+	_add_button(vbox, "Poke  (3D buttons + touch panels with sliders)", func() -> void:
+		_streamer.open(POKE_PLAYGROUND))
 
 	_add_renderer_chip()
 
