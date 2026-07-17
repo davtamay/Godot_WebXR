@@ -662,7 +662,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.26, 0)
 shape = SubResource("CylinderShape_wand")
 
 [node name="GrabPoint" type="Node3D" parent="WandGrab"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.07, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, 0)
 script = ExtResource("92_grabpoint")
 
 [node name="Highlight" type="Node" parent="WandGrab"]
