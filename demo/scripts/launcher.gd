@@ -12,6 +12,7 @@ const GESTURE_DEMO := "res://addons/godot_xr_hands/samples/gesture_diagnostics_d
 const MICROGESTURE_DEMO := "res://addons/godot_xr_hands/samples/microgesture_locomotion_demo.tscn"
 const GESTURE_PLAYGROUND := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
 const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke_playground_demo.tscn"
+const LOCOMOTION_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -53,6 +54,8 @@ func _ready() -> void:
 		_streamer.open(GESTURE_PLAYGROUND))
 	_add_button(vbox, "Poke  (3D buttons + touch panels with sliders)", func() -> void:
 		_streamer.open(POKE_PLAYGROUND))
+	_add_button(vbox, "Locomotion  (teleport arc + snap-to anchors)", func() -> void:
+		_streamer.open(LOCOMOTION_PLAYGROUND))
 
 	_add_renderer_chip()
 
