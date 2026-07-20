@@ -1,0 +1,40 @@
+[gd_scene load_steps=9 format=3 uid="uid://d0tcc4nam0ts7"]
+
+[ext_resource type="PackedScene" uid="uid://crdc24h6y3686" path="res://addons/godot_webxr_kit/webxr_prefab.tscn" id="1_vv0bo"]
+[ext_resource type="PackedScene" path="res://addons/godot_xr_interaction_toolkit/xr_floor.tscn" id="3_nc8le"]
+[ext_resource type="PackedScene" uid="uid://bwrn3q4s5qp63" path="res://addons/godot_xr_interaction_toolkit/grabbable.tscn" id="4_4ky1c"]
+[ext_resource type="Script" uid="uid://c1vlf1bccoqow" path="res://addons/godot_webxr_kit/runtime/xr_simulator.gd" id="6_2poh4"]
+[ext_resource type="Script" uid="uid://bhbhgi70h8n5p" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_debug_panel.gd" id="7_0sfe7"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_hncet"]
+
+[sub_resource type="Sky" id="Sky_8wjj8"]
+sky_material = SubResource("ProceduralSkyMaterial_hncet")
+
+[sub_resource type="Environment" id="Environment_qjvxw"]
+background_mode = 2
+sky = SubResource("Sky_8wjj8")
+ambient_light_source = 3
+
+[node name="XRPlayground" type="Node3D"]
+
+[node name="WebXRPrefab" parent="." instance=ExtResource("1_vv0bo")]
+
+[node name="XRFloor" parent="." instance=ExtResource("3_nc8le")]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, 0.383022, -0.321394, 0, 0.642788, 0.766044, 0.5, -0.663414, 0.55667, 0, 0, 0)
+shadow_enabled = true
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_qjvxw")
+
+[node name="Grabbable" parent="." instance=ExtResource("4_4ky1c")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -0.6)
+
+[node name="XRSimulator" type="Node" parent="."]
+script = ExtResource("6_2poh4")
+
+[node name="XRDebugPanel" type="Node3D" parent="."]
+transform = Transform3D(0.906308, 0, -0.422618, 0, 1, 0, 0.422618, 0, 0.906308, 0.9, 1.5, -1.2)
+script = ExtResource("7_0sfe7")

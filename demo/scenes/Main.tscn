@@ -1,20 +1,20 @@
-[gd_scene format=3]
+[gd_scene load_steps=52 format=3 uid="uid://dvuk47731u2c5"]
 
-[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd" id="8_grab"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_highlight_affordance.gd" id="11_affordance"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="13_ui_canvas"]
-[ext_resource type="Script" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd" id="18_socket"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_affordance.gd" id="19_socket_affordance"]
-[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/rig/webxr_rig.tscn" id="20_rig"]
-[ext_resource type="Script" path="res://addons/godot_webxr_kit/runtime/openxr_bootstrap.gd" id="21_openxr"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_microgesture_locomotion_driver.gd" id="90_microloco"]
+[ext_resource type="Script" uid="uid://cmc6nxgu6lgnh" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dmbamluhcipsm" path="res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd" id="2_webxr"]
+[ext_resource type="Script" uid="uid://mdddmu0wap8q" path="res://addons/godot_webxr_kit/runtime/browser_capabilities.gd" id="3_caps"]
+[ext_resource type="Script" uid="uid://c1rjnfwgfv7gk" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd" id="8_grab"]
+[ext_resource type="Script" uid="uid://c7he6imd51bbm" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_highlight_affordance.gd" id="11_affordance"]
+[ext_resource type="Script" uid="uid://ca14uv4h2l2yy" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd" id="12_base_interactable"]
+[ext_resource type="Script" uid="uid://65x4dyg0uvkd" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="13_ui_canvas"]
+[ext_resource type="Script" uid="uid://bakptsfcn1ka5" path="res://scripts/xr_ui_sample_panel.gd" id="14_ui_sample"]
+[ext_resource type="Script" uid="uid://cidbw8oktj6yt" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd" id="18_socket"]
+[ext_resource type="Script" uid="uid://bvftwr8jo3pfv" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_affordance.gd" id="19_socket_affordance"]
+[ext_resource type="PackedScene" uid="uid://digw24c7kgacb" path="res://addons/godot_webxr_kit/rig/webxr_rig.tscn" id="20_rig"]
+[ext_resource type="Script" uid="uid://lup4er2hx804" path="res://addons/godot_webxr_kit/runtime/openxr_bootstrap.gd" id="21_openxr"]
+[ext_resource type="Script" uid="uid://2r4fgus8uece" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_microgesture_locomotion_driver.gd" id="90_microloco"]
 [ext_resource type="Material" path="res://addons/godot_xr_interaction_toolkit/runtime/ar_grid_material.tres" id="91_argrid"]
-[ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_point.gd" id="92_grabpoint"]
+[ext_resource type="Script" uid="uid://c5fxsn6osclqe" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_point.gd" id="92_grabpoint"]
 
 [sub_resource type="Environment" id="Environment_webxr"]
 background_mode = 2
@@ -302,6 +302,10 @@ surface_material_override/0 = SubResource("Material_instant")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="InspectObject/InteractableBody"]
 shape = SubResource("BoxShape_cube")
 
+[node name="Highlight" type="Node" parent="InspectObject"]
+script = ExtResource("11_affordance")
+display_name = "Instant Grab Cube"
+
 [node name="SmoothGrab" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.05, 0.58, -1.95)
 script = ExtResource("8_grab")
@@ -317,6 +321,10 @@ surface_material_override/0 = SubResource("Material_smooth")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="SmoothGrab/InteractableBody"]
 shape = SubResource("SphereShape_grab")
 
+[node name="Highlight" type="Node" parent="SmoothGrab"]
+script = ExtResource("11_affordance")
+display_name = "Smooth Follow Sphere"
+
 [node name="RotationGrab" type="Node3D" parent="."]
 transform = Transform3D(0.92388, 0, 0.382683, 0, 1, 0, -0.382683, 0, 0.92388, 0.15, 0.58, -1.95)
 script = ExtResource("8_grab")
@@ -331,6 +339,10 @@ surface_material_override/0 = SubResource("Material_rotation")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="RotationGrab/InteractableBody"]
 shape = SubResource("CylinderShape_grab")
+
+[node name="Highlight" type="Node" parent="RotationGrab"]
+script = ExtResource("11_affordance")
+display_name = "Rotation Follow Cylinder"
 
 [node name="SnapGripGrab" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.35, 0.58, -1.75)
@@ -354,6 +366,10 @@ surface_material_override/0 = SubResource("Material_marker")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="SnapGripGrab/InteractableBody"]
 shape = SubResource("BoxShape_cube")
 
+[node name="Highlight" type="Node" parent="SnapGripGrab"]
+script = ExtResource("11_affordance")
+display_name = "Snap Grip Cube"
+
 [node name="LayerTwoGrab" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2.55, 0.58, -1.45)
 script = ExtResource("8_grab")
@@ -367,6 +383,10 @@ surface_material_override/0 = SubResource("Material_filtered")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="LayerTwoGrab/InteractableBody"]
 shape = SubResource("BoxShape_cube")
+
+[node name="Highlight" type="Node" parent="LayerTwoGrab"]
+script = ExtResource("11_affordance")
+display_name = "Layer Filtered Cube"
 
 [node name="PhysicsPullGrab" type="RigidBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.62, -1.25)
@@ -385,6 +405,10 @@ surface_material_override/0 = SubResource("Material_physics")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PhysicsPullGrab"]
 shape = SubResource("BoxShape_cube")
+
+[node name="Highlight" type="Node" parent="PhysicsPullGrab"]
+script = ExtResource("11_affordance")
+display_name = "Throw Spin Box"
 
 [node name="SocketInteractor" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -3.35, 0.34, -2.15)
@@ -414,6 +438,10 @@ surface_material_override/0 = SubResource("Material_hover_target")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="HoverTarget/InteractableBody"]
 shape = SubResource("BoxShape_panel")
 
+[node name="Highlight" type="Node" parent="HoverTarget"]
+script = ExtResource("11_affordance")
+display_name = "Hover Use Panel"
+
 [node name="XRUIPanel" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.28, -3.02)
 script = ExtResource("13_ui_canvas")
@@ -432,8 +460,8 @@ mesh = SubResource("QuadMesh_ui_panel")
 shape = SubResource("BoxShape_ui_panel")
 
 [node name="Viewport" type="SubViewport" parent="XRUIPanel"]
-size = Vector2i(1220, 900)
 disable_3d = true
+size = Vector2i(1220, 900)
 render_target_update_mode = 4
 
 [node name="Root" type="Control" parent="XRUIPanel/Viewport"]
@@ -515,15 +543,12 @@ text = "Slider: 50"
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
-max_value = 100.0
-step = 1.0
 value = 50.0
 
 [node name="DemoProgress" type="ProgressBar" parent="XRUIPanel/Viewport/Root/PanelContainer/MarginContainer/VBoxContainer"]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
-max_value = 100.0
 value = 50.0
 show_percentage = false
 
@@ -547,38 +572,9 @@ status_label_path = NodePath("../CanvasLayer/Panel/MarginContainer/VBoxContainer
 inspect_object_path = NodePath("../InspectObject/Mesh")
 world_environment_path = NodePath("../WorldEnvironment")
 
-[node name="Highlight" type="Node" parent="InspectObject"]
-script = ExtResource("11_affordance")
-display_name = "Instant Grab Cube"
-
-[node name="Highlight" type="Node" parent="SmoothGrab"]
-script = ExtResource("11_affordance")
-display_name = "Smooth Follow Sphere"
-
-[node name="Highlight" type="Node" parent="RotationGrab"]
-script = ExtResource("11_affordance")
-display_name = "Rotation Follow Cylinder"
-
-[node name="Highlight" type="Node" parent="SnapGripGrab"]
-script = ExtResource("11_affordance")
-display_name = "Snap Grip Cube"
-
-[node name="Highlight" type="Node" parent="LayerTwoGrab"]
-script = ExtResource("11_affordance")
-display_name = "Layer Filtered Cube"
-
-[node name="Highlight" type="Node" parent="PhysicsPullGrab"]
-script = ExtResource("11_affordance")
-display_name = "Throw Spin Box"
-
-[node name="Highlight" type="Node" parent="HoverTarget"]
-script = ExtResource("11_affordance")
-display_name = "Hover Use Panel"
-
 [node name="CanvasLayer" type="CanvasLayer" parent="." groups=["xr_session_hidden"]]
 
 [node name="Panel" type="PanelContainer" parent="CanvasLayer"]
-offsets_preset = 1
 offset_left = 24.0
 offset_top = 24.0
 offset_right = 560.0
@@ -630,6 +626,8 @@ text = "Capabilities"
 autowrap_mode = 3
 
 [node name="BrowserCapabilities" type="Control" parent="CanvasLayer"]
+layout_mode = 3
+anchors_preset = 0
 script = ExtResource("3_caps")
 output_label_path = NodePath("../Panel/MarginContainer/VBoxContainer/CapsLabel")
 
