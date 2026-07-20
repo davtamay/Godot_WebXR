@@ -14,6 +14,7 @@ const GESTURE_PLAYGROUND := "res://addons/godot_xr_hands/samples/gesture_playgro
 const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke_playground_demo.tscn"
 const LOCOMOTION_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 const CONTROL_PANEL := "res://addons/godot_xr_interaction_toolkit/samples/control_panel_demo.tscn"
+const PHYSICS_THROW := "res://addons/godot_xr_interaction_toolkit/samples/physics_throw_demo.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -59,6 +60,8 @@ func _ready() -> void:
 		_streamer.open(LOCOMOTION_PLAYGROUND))
 	_add_button(vbox, "Control Panel  (dial / lever / drawer mechanisms)", func() -> void:
 		_streamer.open(CONTROL_PANEL))
+	_add_button(vbox, "Grab & Throw  (physics blocks with gravity)", func() -> void:
+		_streamer.open(PHYSICS_THROW))
 
 	_add_renderer_chip()
 
