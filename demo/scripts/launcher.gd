@@ -15,6 +15,7 @@ const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke
 const LOCOMOTION_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 const CONTROL_PANEL := "res://addons/godot_xr_interaction_toolkit/samples/control_panel_demo.tscn"
 const PHYSICS_THROW := "res://addons/godot_xr_interaction_toolkit/samples/physics_throw_demo.tscn"
+const HANDHELD_TOOLS := "res://addons/godot_xr_interaction_toolkit/samples/handheld_tools_demo.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -62,6 +63,8 @@ func _ready() -> void:
 		_streamer.open(CONTROL_PANEL))
 	_add_button(vbox, "Grab & Throw  (physics blocks with gravity)", func() -> void:
 		_streamer.open(PHYSICS_THROW))
+	_add_button(vbox, "Handheld Tools  (grab points: cup / pen / wand + draw)", func() -> void:
+		_streamer.open(HANDHELD_TOOLS))
 
 	_add_renderer_chip()
 
