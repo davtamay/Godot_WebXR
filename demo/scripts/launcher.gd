@@ -3,18 +3,14 @@ extends Control
 ## Bare-bones launcher: the tiny main scene the browser reaches first. Each
 ## button opens a WebXR sample scene on demand.
 
-const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
-const TOOLKIT_SCENE := "res://scenes/Main.tscn"
-const SCENE_UNDERSTANDING_SCENE := "res://addons/godot_webxr_scene_understanding/samples/scene_understanding_demo.tscn"
-const LIGHT_ESTIMATION_SCENE := "res://addons/godot_webxr_scene_understanding/samples/light_estimation_demo.tscn"
-const HIT_TEST_ANCHORS_SCENE := "res://addons/godot_webxr_scene_understanding/samples/hit_test_anchors_demo.tscn"
-const GESTURE_DEMO := "res://addons/godot_xr_hands/samples/gesture_diagnostics_demo.tscn"
-const MICROGESTURE_DEMO := "res://addons/godot_xr_hands/samples/microgesture_locomotion_demo.tscn"
-const GESTURE_PLAYGROUND := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
-const POKE_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/poke_playground_demo.tscn"
-const LOCOMOTION_PLAYGROUND := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
-const CONTROL_PANEL := "res://addons/godot_xr_interaction_toolkit/samples/control_panel_demo.tscn"
+# Curated "wow" showcase scenes - each consolidates a family of XR blocks. The
+# individual demos still exist in the addons for focused reference.
 const WORKSHOP := "res://addons/godot_xr_interaction_toolkit/samples/workshop_demo.tscn"
+const CONTROLS := "res://addons/godot_xr_interaction_toolkit/samples/control_panel_demo.tscn"
+const LOCOMOTION_ARENA := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
+const PERCEPTION := "res://addons/godot_webxr_scene_understanding/samples/perception_managers_demo.tscn"
+const GESTURE_STUDIO := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
+const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -40,28 +36,18 @@ func _ready() -> void:
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(_status)
 
-	_add_button(vbox, "XR Interaction Toolkit", func() -> void:
-		_streamer.open(TOOLKIT_SCENE))
+	_add_button(vbox, "Workshop  (grab · throw · draw · shoot · spray)", func() -> void:
+		_streamer.open(WORKSHOP))
+	_add_button(vbox, "Controls  (buttons · sliders · dial · lever · drawer)", func() -> void:
+		_streamer.open(CONTROLS))
+	_add_button(vbox, "Locomotion Arena  (teleport · anchors · climbing · smooth-move)", func() -> void:
+		_streamer.open(LOCOMOTION_ARENA))
+	_add_button(vbox, "Perception  (room mesh · depth occlusion · light · anchors)", func() -> void:
+		_streamer.open(PERCEPTION))
+	_add_button(vbox, "Gesture Studio  (record, name, and practice hand poses)", func() -> void:
+		_streamer.open(GESTURE_STUDIO))
 	_add_button(vbox, "Performance  (VR stress benchmark)", func() -> void:
 		_streamer.open(BENCHMARK_SCENE))
-	_add_button(vbox, "Scene Understanding  (room mesh / labels / occlusion / depth)", func() -> void:
-		_streamer.open(SCENE_UNDERSTANDING_SCENE))
-	_add_button(vbox, "Light Estimation  (environment-matched PBR)", func() -> void:
-		_streamer.open(LIGHT_ESTIMATION_SCENE))
-	_add_button(vbox, "Hit Test + Anchors  (stable AR placement)", func() -> void:
-		_streamer.open(HIT_TEST_ANCHORS_SCENE))
-	_add_button(vbox, "Micro-Gestures  (thumb-tap locomotion)", func() -> void:
-		_streamer.open(MICROGESTURE_DEMO))
-	_add_button(vbox, "Gesture Studio  (record, name, and practice your own poses)", func() -> void:
-		_streamer.open(GESTURE_PLAYGROUND))
-	_add_button(vbox, "Poke  (3D buttons + touch panels with sliders)", func() -> void:
-		_streamer.open(POKE_PLAYGROUND))
-	_add_button(vbox, "Locomotion  (teleport arc + snap-to anchors)", func() -> void:
-		_streamer.open(LOCOMOTION_PLAYGROUND))
-	_add_button(vbox, "Control Panel  (dial / lever / drawer mechanisms)", func() -> void:
-		_streamer.open(CONTROL_PANEL))
-	_add_button(vbox, "Workshop  (throw / draw / shoot / spray - all grab-and-use tools)", func() -> void:
-		_streamer.open(WORKSHOP))
 
 	_add_renderer_chip()
 
