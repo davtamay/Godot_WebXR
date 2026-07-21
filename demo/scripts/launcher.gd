@@ -1,7 +1,10 @@
-extends Control
+extends Node3D
 
-## Bare-bones launcher: the tiny main scene the browser reaches first. Each
-## button opens a WebXR sample scene on demand.
+## The main menu as a 3D scene. The WebXR rig lives here, so the XR session (or
+## the flat mouse / desktop simulator) is ALREADY running when you pick a scene -
+## selecting a showcase is an XR->XR (or flat->flat) hand-off instead of a flat
+## menu jumping cold into an XR scene (which left the session stuck). The menu is
+## a 3D panel you click with the controller ray, a bare-hand ray, or the mouse.
 
 # Curated "wow" showcase scenes - each consolidates a family of XR blocks. The
 # individual demos still exist in the addons for focused reference.
@@ -15,93 +18,97 @@ const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stres
 var _streamer: SceneStreamer
 var _status: Label
 
+
 func _ready() -> void:
 	_streamer = SceneStreamer.new()
 	add_child(_streamer)
 	_streamer.status.connect(_on_status)
 
+	var root: Control = $MenuPanel/Viewport/Root
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for side in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_%s" % side, 44)
+	root.add_child(margin)
+
 	var vbox := VBoxContainer.new()
-	vbox.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
-	vbox.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	vbox.grow_vertical = Control.GROW_DIRECTION_BOTH
-	vbox.add_theme_constant_override("separation", 12)
-	add_child(vbox)
+	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
+	vbox.add_theme_constant_override("separation", 14)
+	margin.add_child(vbox)
 
 	var title := Label.new()
-	title.text = "Godot WebXR Samples — choose a scene"
+	title.text = "Godot WebXR Samples"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 42)
 	vbox.add_child(title)
 
 	_status = Label.new()
+	_status.text = "choose a showcase"
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.add_theme_font_size_override("font_size", 22)
+	_status.modulate = Color(1, 1, 1, 0.7)
 	vbox.add_child(_status)
 
-	_add_button(vbox, "Workshop  (grab · throw · draw · shoot · spray)", func() -> void:
+	_add_button(vbox, "Workshop", "grab · throw · draw · shoot · spray", func() -> void:
 		_streamer.open(WORKSHOP))
-	_add_button(vbox, "Controls  (buttons · sliders · dial · lever · drawer)", func() -> void:
+	_add_button(vbox, "Controls", "buttons · sliders · dial · lever · drawer", func() -> void:
 		_streamer.open(CONTROLS))
-	_add_button(vbox, "Locomotion Arena  (teleport · anchors · climbing · smooth-move)", func() -> void:
+	_add_button(vbox, "Locomotion Arena", "teleport · anchors · climbing · smooth-move", func() -> void:
 		_streamer.open(LOCOMOTION_ARENA))
-	_add_button(vbox, "Perception  (room mesh · depth occlusion · light · anchors)", func() -> void:
+	_add_button(vbox, "Perception", "room mesh · depth occlusion · light · anchors", func() -> void:
 		_streamer.open(PERCEPTION))
-	_add_button(vbox, "Gesture Studio  (record, name, and practice hand poses)", func() -> void:
+	_add_button(vbox, "Gesture Studio", "record, name, and practice hand poses", func() -> void:
 		_streamer.open(GESTURE_STUDIO))
-	_add_button(vbox, "Performance  (VR stress benchmark)", func() -> void:
+	_add_button(vbox, "Performance", "VR stress benchmark", func() -> void:
 		_streamer.open(BENCHMARK_SCENE))
 
-	_add_renderer_chip()
+	_add_renderer_chip(vbox)
 
-## Explicit renderer selector, top-right. Shown only where WebGPU is actually
-## available for XR in this build (WebXRRenderer.webgpu_supported() -> false on
-## stock/gl builds and on browsers without WebGPU-XR). Switching saves a
-## preference and reloads: the graphics backend is a boot decision, since an
+
+func _add_button(parent: Node, name_text: String, desc_text: String, on_press: Callable) -> void:
+	var b := Button.new()
+	b.text = name_text
+	b.custom_minimum_size = Vector2(0, 84)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 30)
+	b.tooltip_text = desc_text
+	b.pressed.connect(on_press)
+	parent.add_child(b)
+
+
+## Renderer selector (web only): shown where WebGPU is actually available for XR
+## (WebXRRenderer.webgpu_supported() -> false on stock/gl builds). Switching saves
+## a preference and reloads - the graphics backend is a boot decision, since an
 ## HTML canvas is locked to its first getContext type.
-func _add_renderer_chip() -> void:
+func _add_renderer_chip(parent: Node) -> void:
 	if not WebXRRenderer.webgpu_supported():
 		return
 	var active := WebXRRenderer.active()
-	var box := VBoxContainer.new()
-	box.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	box.offset_left = -300.0
-	box.offset_top = 12.0
-	box.offset_right = -12.0
-	box.add_theme_constant_override("separation", 4)
-	add_child(box)
-
 	var head := Label.new()
-	head.text = "Renderer: " + active.to_upper()
-	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	box.add_child(head)
-
-	var note := Label.new()
-	note.text = WebXRRenderer.coverage_note(active)
-	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	note.custom_minimum_size = Vector2(288, 0)
-	note.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	note.modulate = Color(1, 1, 1, 0.7)
-	box.add_child(note)
+	head.text = "Renderer: " + active.to_upper() + " — " + WebXRRenderer.coverage_note(active)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	head.modulate = Color(1, 1, 1, 0.7)
+	head.add_theme_font_size_override("font_size", 18)
+	parent.add_child(head)
 
 	var row := HBoxContainer.new()
-	row.alignment = BoxContainer.ALIGNMENT_END
-	box.add_child(row)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	parent.add_child(row)
 	for mode in ["webgl", "webgpu"]:
 		var b := Button.new()
 		b.text = mode.to_upper()
 		b.disabled = (mode == active)
-		b.custom_minimum_size = Vector2(96, 40)
+		b.custom_minimum_size = Vector2(120, 44)
 		b.pressed.connect(_switch_renderer.bind(mode))
 		row.add_child(b)
+
 
 func _switch_renderer(mode: String) -> void:
 	WebXRRenderer.switch_to(mode)
 
-func _add_button(parent: Node, text: String, on_press: Callable) -> void:
-	var b := Button.new()
-	b.text = text
-	b.custom_minimum_size = Vector2(360, 56)
-	b.pressed.connect(on_press)
-	parent.add_child(b)
 
 func _on_status(text: String) -> void:
-	_status.text = text
+	if _status:
+		_status.text = text
 	print("[launcher] " + text)
