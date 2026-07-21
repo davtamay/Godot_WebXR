@@ -13,7 +13,6 @@ const CONTROLS := "res://addons/godot_xr_interaction_toolkit/samples/control_pan
 const LOCOMOTION_ARENA := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 const PERCEPTION := "res://addons/godot_webxr_scene_understanding/samples/perception_managers_demo.tscn"
 const GESTURE_STUDIO := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
-const BENCHMARK_SCENE := "res://addons/godot_blender_principled/samples/vr_stress_benchmark.tscn"
 
 var _streamer: SceneStreamer
 var _status: Label
@@ -59,8 +58,6 @@ func _ready() -> void:
 		_streamer.open(PERCEPTION))
 	_add_button(vbox, "Gesture Studio", "record, name, and practice hand poses", func() -> void:
 		_streamer.open(GESTURE_STUDIO))
-	_add_button(vbox, "Performance", "VR stress benchmark", func() -> void:
-		_streamer.open(BENCHMARK_SCENE))
 
 	_add_renderer_chip(vbox)
 
