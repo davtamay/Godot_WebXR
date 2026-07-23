@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3 uid="uid://emu3ocgt053l"]
 
-[ext_resource type="PackedScene" uid="uid://crdc24h6y3686" path="res://addons/godot_webxr_kit/webxr_prefab.tscn" id="1_q2aha"]
+[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/xr_prefab.tscn" id="1_q2aha"]
 [ext_resource type="PackedScene" path="res://addons/godot_xr_interaction_toolkit/xr_floor.tscn" id="3_t63ci"]
 [ext_resource type="PackedScene" uid="uid://bwrn3q4s5qp63" path="res://addons/godot_xr_interaction_toolkit/grabbable.tscn" id="4_7sxqr"]
 [ext_resource type="Script" uid="uid://c1vlf1bccoqow" path="res://addons/godot_webxr_kit/runtime/xr_simulator.gd" id="6_g1onk"]
@@ -18,7 +18,7 @@ ambient_light_source = 3
 
 [node name="XRPlayground" type="Node3D"]
 
-[node name="WebXRPrefab" parent="." instance=ExtResource("1_q2aha")]
+[node name="XRPrefab" parent="." instance=ExtResource("1_q2aha")]
 
 [node name="XRFloor" parent="." instance=ExtResource("3_t63ci")]
 

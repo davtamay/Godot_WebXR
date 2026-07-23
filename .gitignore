@@ -7,6 +7,7 @@
 # Godot generated/exported artifacts.
 build/
 **/build/
+demo/android/
 exports/
 **/exports/
 *.tmp

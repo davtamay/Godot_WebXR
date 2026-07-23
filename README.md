@@ -1,5 +1,37 @@
 # Godot WebXR / Web Export Feasibility Handoff
 
+## Current project layout
+
+The reusable addons are developed in the sibling
+`godot-xr-suite` repository; this repository is the consuming demo. Run
+`setup.ps1` to point `demo/addons` at the suite's current `master`.
+
+The demo now targets Godot 4.8 and keeps separate export paths:
+
+- `Web` / `WebNoThreads` for WebXR and WebGPU-capable web builds.
+- `UniversalXRAPK` for one arm64 OpenXR development APK shared by Quest 3
+  and Android XR devices such as Galaxy XR.
+
+Native export setup and manifest validation live in the canonical suite addon
+`godot_universal_xr_apk`. Store-specific Meta and Google presets remain a
+later layer; the universal preset deliberately avoids required vendor
+libraries.
+
+## Web export notes
+
+The `Web` and `WebNoThreads` presets intentionally enable
+`shader_baker/enabled`. WebGPU cannot compile these shaders at runtime, so
+export with the matching Godot WebGPU editor and Tint translator available.
+Do not add `--headless` to a WebGPU export command: Godot's headless dummy
+renderer cannot populate the baked shader cache.
+
+The current non-threaded web presets run over ordinary HTTP and do not require
+COOP/COEP cross-origin-isolation headers. Those headers are deployment
+requirements for threaded web exports, not for choosing between WebGPU and
+WebGL. The adaptive shell uses WebGPU for a capable flat browser, retains
+WebGL for immersive WebXR compatibility, and respects an explicit saved
+renderer choice.
+
 This repo packet is the source-of-truth handoff for Claude Fable 5 and ChatGPT collaboration.
 
 ## Mission

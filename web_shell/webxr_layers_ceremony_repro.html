@@ -6,7 +6,7 @@ transition (grey grid room) before every immersive session - even though
 Chromium serves projection layers WITHOUT the declaration (this page uses
 XRWebGLBinding.createProjectionLayer either way). Toggle the M-comment on
 the optionalFeatures line to compare. Quest Browser shows no ceremony in
-either case. Found 2026-07-11 by feature-set bisection; the godot-webxr-suite
+either case. Found 2026-07-11 by feature-set bisection; the godot-xr-suite
 stopped declaring 'layers' in webxr_bootstrap.gd for this reason - re-add
 conditionally only if quad/cylinder layers are adopted, or once Android XR
 drops the ceremony. The say() helper posts to /log when served by a tap

@@ -1,13 +1,14 @@
 extends SceneTree
 
 ## Headless test runner for the XR Interaction Toolkit addon.
-## Run: c:/tmp/Godot47/Godot_v4.7-stable_win64_console.exe --headless --path demo -s res://tests/run_tests.gd
+## Run: Godot_v4.8-dev2_win64_console.exe --headless --xr-mode off --path demo --script res://tests/run_tests.gd
 ## Exit code 0 = all checks passed, 1 = at least one failure.
 
 const XRInteractionLayerMask := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_layers.gd")
 const XRInputAdapter := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_input_adapter.gd")
 const XRHandGestureProvider := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_gesture_provider.gd")
 const XRHandTrackerResolver := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_hand_tracker_resolver.gd")
+const XRRigResolverScript := preload("res://addons/godot_xr_interaction_toolkit/runtime/input/xr_rig_resolver.gd")
 const XRInteractionManager := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interaction_manager.gd")
 const XRBaseInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactable.gd")
 const XRBaseInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_base_interactor.gd")
@@ -15,6 +16,9 @@ const XRDirectInteractor := preload("res://addons/godot_xr_interaction_toolkit/r
 const XRRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ray_interactor.gd")
 const XRSocketInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_socket_interactor.gd")
 const WebXRInputAdapter := preload("res://addons/godot_webxr_kit/runtime/webxr_input_adapter.gd")
+const XRRuntimeConfigScript := preload("res://addons/godot_webxr_kit/runtime/xr_runtime_config.gd")
+const DefaultXRRuntimeConfig := preload("res://addons/godot_webxr_kit/runtime/default_xr_runtime_config.tres")
+const XRInputModalityManagerScript := preload("res://addons/godot_webxr_kit/runtime/xr_input_modality_manager.gd")
 const XRGrabInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_grab_interactable.gd")
 const XRInteractorLineVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_interactor_line_visual.gd")
 const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_reticle_visual.gd")
@@ -38,6 +42,7 @@ func _run_all() -> void:
     _test_material_collection_import()
     _test_hand_ray_geometry()
     _test_hand_tracker_resolver_validity()
+    await _test_rig_resolver_uses_own_scene()
     _test_hand_visualizer_fallback_shape()
     _test_hand_bone_basis_no_shear()
     _test_manager_registry_and_arbitration()
@@ -55,7 +60,7 @@ func _run_all() -> void:
     await _test_ray_hover_and_grab_integration()
     _test_ray_suppressed_by_direct_interactor()
     _test_webxr_adapter_inert_on_desktop()
-    _test_webxr_adapter_browser_bridge_pose_math()
+    _test_cross_platform_runtime_config()
     _test_hand_select_stabilization_math()
     _test_grab_follow()
     _test_grab_throw_on_release()
@@ -85,6 +90,36 @@ func _test_layer_mask() -> void:
     check(XRInteractionLayerMask.overlaps(0b0110, 0b0100), "masks sharing one bit overlap")
     check(not XRInteractionLayerMask.overlaps(0b0011, 0b0100), "disjoint masks do not overlap")
     check(not XRInteractionLayerMask.overlaps(0, 0), "zero masks never overlap")
+
+
+func _test_rig_resolver_uses_own_scene() -> void:
+    var outgoing := Node3D.new()
+    outgoing.name = "OutgoingScene"
+    var outgoing_origin := XROrigin3D.new()
+    outgoing.add_child(outgoing_origin)
+    root.add_child(outgoing)
+    current_scene = outgoing
+
+    var incoming := Node3D.new()
+    incoming.name = "IncomingScene"
+    var incoming_origin := XROrigin3D.new()
+    incoming.add_child(incoming_origin)
+    var block := Node.new()
+    incoming.add_child(block)
+    root.add_child(incoming)
+    await process_frame
+
+    var resolved := XRRigResolverScript.find_origin(block)
+    check(
+        resolved == incoming_origin,
+        "rig resolver stays inside an overlapping incoming scene (got %s)"
+            % [
+                resolved.get_path() if resolved else "<null>",
+            ]
+    )
+    current_scene = null
+    incoming.free()
+    outgoing.free()
 
 func _test_principled_material_aliases() -> void:
     var m := PrincipledMaterial.new()
@@ -174,29 +209,37 @@ func _test_hand_ray_geometry() -> void:
     check(XRHandGestureProvider.get_hand_ray_pose(null).is_empty(), "null tracker yields empty pose")
 
     var tracker := XRHandTracker.new()
+    tracker.hand = XRPositionalTracker.TRACKER_HAND_LEFT
     tracker.has_tracking_data = true
     var valid := XRHandTracker.HAND_JOINT_FLAG_POSITION_VALID | XRHandTracker.HAND_JOINT_FLAG_POSITION_TRACKED
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_WRIST, Vector3.ZERO, valid)
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_PALM, Vector3(0, 0, -0.05), valid)
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_THUMB_TIP, Vector3(0.01, 0, -0.15), valid)
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), valid)
+    var wrist_position := Vector3(0, 1, 0)
+    var palm_position := Vector3(0, 1, -0.05)
+    var knuckle_position := Vector3(0, 1, -0.10)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_WRIST, wrist_position, valid)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_PALM, palm_position, valid)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL, knuckle_position, valid)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_PINKY_FINGER_PHALANX_PROXIMAL, Vector3(-0.05, 1, -0.10), valid)
 
     var pose := XRHandGestureProvider.get_hand_ray_pose(tracker)
     check(not pose.is_empty(), "valid joints yield a ray pose")
     if not pose.is_empty():
-        check((pose["direction"] as Vector3).is_equal_approx(Vector3(0, 0, -1)), "direction points palm to cursor")
-        var expected_origin := Vector3(0, 0, -0.15) + Vector3(0, 0, -1) * XRHandGestureProvider.RAY_ORIGIN_FORWARD_OFFSET
-        check((pose["origin"] as Vector3).is_equal_approx(expected_origin), "origin is cursor nudged forward along the ray")
+        var expected_direction := Vector3.FORWARD.rotated(
+            Vector3.LEFT,
+            deg_to_rad(XRHandGestureProvider.HAND_RAY_PITCH_DOWN_DEGREES)
+        ).normalized()
+        check((pose["direction"] as Vector3).is_equal_approx(expected_direction), "direction follows the stable knuckle ray with downward pitch")
+        var expected_origin := (knuckle_position + palm_position) * 0.5 + expected_direction * XRHandGestureProvider.RAY_ORIGIN_FORWARD_OFFSET
+        check((pose["origin"] as Vector3).is_equal_approx(expected_origin), "origin is anchored between knuckle and palm")
 
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), 0)
-    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "invalid index tip yields empty pose")
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), valid)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL, knuckle_position, 0)
+    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "missing index knuckle yields no hand ray")
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_METACARPAL, Vector3(0, 1, -0.09), valid)
+    check(not XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "index metacarpal is a valid knuckle fallback")
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_METACARPAL, Vector3(0, 1, -0.09), 0)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_PHALANX_PROXIMAL, knuckle_position, valid)
 
     tracker.has_tracking_data = false
     check(not XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "valid joints seed a ray before tracker-level data flips")
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), 0)
-    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "invalid joints yield empty pose")
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_INDEX_FINGER_TIP, Vector3(-0.01, 0, -0.15), valid)
 
     var forward := Vector3(1, 0, 0)
     var ray_basis := XRHandGestureProvider.basis_from_forward(forward)
@@ -205,9 +248,10 @@ func _test_hand_ray_geometry() -> void:
     check((-up_basis.z).is_equal_approx(Vector3.UP), "basis_from_forward survives the straight-up singularity")
 
     tracker.has_tracking_data = true
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_WRIST, Vector3.ZERO, 0)
-    _set_joint(tracker, XRHandTracker.HAND_JOINT_PALM, Vector3(0, 0, -0.05), valid)
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_WRIST, wrist_position, 0)
     check(not XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "palm can seed hand ray before wrist is valid")
+    _set_joint(tracker, XRHandTracker.HAND_JOINT_PALM, palm_position, 0)
+    check(XRHandGestureProvider.get_hand_ray_pose(tracker).is_empty(), "hand ray requires a valid wrist or palm anchor")
 
 func _set_joint(tracker: XRHandTracker, joint: int, position: Vector3, flags: int) -> void:
     tracker.set_hand_joint_transform(joint, Transform3D(Basis.IDENTITY, position))
@@ -806,45 +850,50 @@ func _test_webxr_adapter_inert_on_desktop() -> void:
     check(not adapter.stabilize_hand_select, "hand ray select stabilization defaults off")
     adapter.free()
 
-func _test_webxr_adapter_browser_bridge_pose_math() -> void:
-    var origin := Node3D.new()
-    root.add_child(origin)
-    origin.global_position = Vector3(10, 0, 0)
 
-    var adapter := WebXRInputAdapter.new()
-    adapter.set("_origin", origin)
-    adapter.set("_browser_hand_snapshot", {
-        "hands": {
-            "right": {
-                "targetRay": {"x": 1.0, "y": 2.0, "z": 3.0, "dx": 0.0, "dy": 0.0, "dz": -1.0},
-                "joints": {
-                    "wrist": {"x": 1.0, "y": 0.0, "z": 0.0},
-                    "index-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.02},
-                    "middle-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.03},
-                    "ring-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.04},
-                    "pinky-finger-metacarpal": {"x": 1.0, "y": 0.0, "z": -0.05},
-                    "thumb-tip": {"x": 1.0, "y": 0.0, "z": -0.10},
-                    "index-finger-tip": {"x": 1.0, "y": 0.0, "z": -0.12},
-                },
-            },
-        },
-    })
-
-    var aim_pose := adapter.get_aim_pose(XRInputAdapter.Hand.RIGHT)
-    check(not aim_pose.is_empty(), "browser bridge target ray yields an aim pose")
-    check((aim_pose["origin"] as Vector3).is_equal_approx(Vector3(11, 2, 3)), "browser bridge aim pose is converted to global space")
-    check((aim_pose["direction"] as Vector3).is_equal_approx(Vector3(0, 0, -1)), "browser bridge aim direction is preserved")
-    check(adapter.get_source_kind(XRInputAdapter.Hand.RIGHT) == XRInputAdapter.SourceKind.HAND, "browser bridge reports hand source kind")
-
-    var grip_pose := adapter.get_grip_pose(XRInputAdapter.Hand.RIGHT)
-    check(not grip_pose.is_empty(), "browser bridge joints yield a grip fallback")
-    check((grip_pose["origin"] as Vector3).is_equal_approx(Vector3(11, 0, -0.028)), "browser bridge grip fallback averages palm joints in global space")
-
-    var pinch_distance: float = adapter.call("_browser_pinch_distance", XRInputAdapter.Hand.RIGHT)
-    check(is_equal_approx(pinch_distance, 0.02), "browser bridge pinch distance reads thumb/index tips")
-
-    adapter.free()
-    origin.free()
+func _test_cross_platform_runtime_config() -> void:
+    check(DefaultXRRuntimeConfig is XRRuntimeConfigScript, "default XR runtime policy is a typed resource")
+    check(DefaultXRRuntimeConfig.webxr_enabled, "default policy enables WebXR")
+    check(DefaultXRRuntimeConfig.openxr_enabled, "default policy enables native OpenXR")
+    check(
+        int(ProjectSettings.get_setting("xr/openxr/reference_space", 1)) == 2,
+        "native OpenXR uses Local Floor to match WebXR"
+    )
+    check(
+        int(ProjectSettings.get_setting("xr/openxr/environment_blend_mode", 0)) == 2,
+        "native OpenXR requests alpha-blended passthrough before initialization"
+    )
+    check(
+        ProjectSettings.get_setting("xr/openxr/extensions/meta/passthrough", false),
+        "Universal XR enables Meta passthrough capability"
+    )
+    check(
+        DefaultXRRuntimeConfig.openxr_start_in_passthrough,
+        "native OpenXR starts in passthrough AR by default"
+    )
+    check(not DefaultXRRuntimeConfig.webxr_require_hand_tracking, "WebXR hands are optional by default")
+    check(
+        not DefaultXRRuntimeConfig.openxr_simultaneous_hands_and_controllers,
+        "portable native policy leaves simultaneous hands/controllers off"
+    )
+    check(
+        XRInputModalityManagerScript.choose_auto_modality(
+            true, true, "/interaction_profiles/oculus/touch_controller", true
+        ) == XRInputModalityManagerScript.Modality.HAND,
+        "live optical hand outranks a stale controller profile"
+    )
+    check(
+        XRInputModalityManagerScript.choose_auto_modality(
+            false, true, "/interaction_profiles/oculus/touch_controller", true
+        ) == XRInputModalityManagerScript.Modality.CONTROLLER,
+        "controller takes over after optical hand tracking disappears"
+    )
+    check(
+        XRInputModalityManagerScript.choose_auto_modality(
+            true, true, "/interaction_profiles/oculus/touch_controller", false
+        ) == XRInputModalityManagerScript.Modality.CONTROLLER,
+        "simultaneous-input users can opt back into controller priority"
+    )
 
 func _test_hand_select_stabilization_math() -> void:
     var adapter := WebXRInputAdapter.new()

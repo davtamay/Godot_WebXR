@@ -32,12 +32,12 @@ func _ready() -> void:
 func open(scene_path: String, pck_url := "", cache_name := "") -> void:
 	_scene = scene_path
 	if pck_url.is_empty():
-		get_tree().change_scene_to_file(_scene)
+		_change_scene_deferred()
 		return
 	_cache = "user://" + cache_name
 	if FileAccess.file_exists(_cache) and ProjectSettings.load_resource_pack(_cache):
 		status.emit("cached — loading…")
-		get_tree().change_scene_to_file(_scene)
+		_change_scene_deferred()
 		return
 	status.emit("Connecting…")
 	# Download to memory, then write+flush ourselves. HTTPRequest.download_file
@@ -99,6 +99,16 @@ func _on_request_completed(result: int, code: int, _headers: PackedStringArray, 
 	f.close()   # synchronous flush before we mount
 	status.emit("downloaded %d bytes — mounting…" % body.size())
 	if ProjectSettings.load_resource_pack(_cache):
-		get_tree().change_scene_to_file(_scene)
+		_change_scene_deferred()
 	else:
 		status.emit("mount failed (wrote %d bytes to %s)" % [body.size(), _cache])
+
+
+## A launcher button can call open() while Viewport is still dispatching its
+## input event. Changing the scene immediately frees that Viewport mid-dispatch,
+## which produces !is_inside_tree() errors in web builds. Defer the hand-off to
+## the next idle step so mouse, controller-ray, and hand-ray clicks finish cleanly.
+## XRSceneRouter also overlaps the incoming/outgoing XR owners, preventing the
+## native compositor from flashing the previous launcher frame.
+func _change_scene_deferred() -> void:
+	XRSceneRouter.change_scene_to_file(_scene)

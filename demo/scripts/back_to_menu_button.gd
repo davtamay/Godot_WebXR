@@ -2,8 +2,8 @@ class_name BackToMenuButton
 extends CanvasLayer
 
 ## Drop-in "≡ Menu" button that returns to the launcher. Add it to any scene with
-## one line: `add_child(BackToMenuButton.new())`. Works in the flat browser view;
-## if a WebXR session is active it drops out of XR first so the flat menu shows.
+## one line: `add_child(BackToMenuButton.new())`. The shared scene router keeps
+## an active WebXR/OpenXR session presenting while the launcher is restored.
 
 const MENU := "res://scenes/launcher.tscn"
 
@@ -20,6 +20,4 @@ func _ready() -> void:
 	add_child(b)
 
 func _go() -> void:
-	if get_viewport().use_xr:
-		get_viewport().use_xr = false
-	get_tree().change_scene_to_file(MENU)
+	XRSceneRouter.change_scene_to_file(MENU)

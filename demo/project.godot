@@ -14,10 +14,14 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 [application]
 
-config/name="Godot WebXR Samples"
+config/name="Godot XR Samples"
 run/main_scene="res://scenes/launcher.tscn"
 config/features=PackedStringArray("4.8", "GL Compatibility")
 config/icon="res://icon.svg"
+
+[autoload]
+
+XRSceneRouter="*res://scripts/xr_scene_router.gd"
 
 [display]
 
@@ -28,7 +32,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_xr_interaction_toolkit/plugin.cfg", "res://addons/godot_webgpu/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_xr_interaction_toolkit/plugin.cfg", "res://addons/godot_webgpu/plugin.cfg", "res://addons/godot_universal_xr_apk/plugin.cfg")
 
 [rendering]
 
@@ -43,6 +47,12 @@ rendering_device/driver.web="webgpu"
 [xr]
 
 openxr/enabled=true
+openxr/environment_blend_mode=2
 openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_map.tres"
+openxr/reference_space=2
 openxr/extensions/hand_tracking=true
-openxr/extensions/meta/simultaneous_hands_and_controllers=true
+openxr/extensions/meta/passthrough=true
+openxr/extensions/meta/scene_api=true
+openxr/extensions/meta/environment_depth=true
+openxr/extensions/androidxr/scene_meshing=true
+openxr/extensions/androidxr/environment_depth=true

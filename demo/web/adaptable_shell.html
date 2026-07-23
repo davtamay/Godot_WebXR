@@ -112,19 +112,52 @@ body {
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
 // Renderer preference, set by the in-app menu (WebXRRenderer.switch_to).
-// Default WebGL for full feature support (depth sensing / occlusion); only an
-// explicit "webgpu" keeps the adaptive WebGPU path on. __godotWebGPUCapable
-// tells the menu whether this build can offer WebGPU at all (the experimentalWebGPU
-// key exists only in WebGPU-driver exports) so stock builds stay WebGL-only.
-try {
-	window.__godotWebGPUCapable = !!(navigator.gpu && ('experimentalWebGPU' in GODOT_CONFIG) && ('XRGPUBinding' in window));
-	if ((localStorage.getItem('godot_renderer') || '') !== 'webgpu') {
-		GODOT_CONFIG['experimentalWebGPU'] = false;
-	}
-} catch (e) {}
-const engine = new Engine(GODOT_CONFIG);
+// With no saved preference, flat desktop launches use WebGPU while browsers
+// that can enter immersive WebXR keep WebGL's broader XR feature coverage.
+// A short, conservative support probe happens before the canvas is created
+// because its first graphics context permanently chooses the renderer.
+async function configureRenderer() {
+	const exportedWithWebGPU = GODOT_CONFIG['experimentalWebGPU'] === true;
+	const flatWebGPUCapable = !!(navigator.gpu && exportedWithWebGPU);
+	window.__godotWebGPUCapable = flatWebGPUCapable;
+	window.__godotWebXRWebGPUCapable = !!(flatWebGPUCapable && ('XRGPUBinding' in window));
 
-(function () {
+	let preference = '';
+	try {
+		preference = localStorage.getItem('godot_renderer') || '';
+	} catch (e) {}
+
+	let immersiveSupported = false;
+	if (navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
+		const timeout = new Promise((resolve) => {
+			// If the browser's XR runtime stalls, preserve the compatible WebGL
+			// path instead of risking an unusable headset launch.
+			setTimeout(() => resolve([true, true]), 1500);
+		});
+		const checks = Promise.all(['immersive-vr', 'immersive-ar'].map((mode) => {
+			return navigator.xr.isSessionSupported(mode).catch(() => false);
+		}));
+		const results = await Promise.race([checks, timeout]);
+		immersiveSupported = results.some(Boolean);
+	}
+
+	// When no immersive runtime is present, tell the adaptive engine loader this
+	// is a flat launch so navigator.xr alone cannot force an unnecessary WebGL
+	// fallback on browsers that lack XRGPUBinding.
+	if (!immersiveSupported) {
+		GODOT_CONFIG['requiresWebXR'] = false;
+	}
+
+	if (preference === 'webgl' || !flatWebGPUCapable) {
+		GODOT_CONFIG['experimentalWebGPU'] = false;
+	} else if (preference === 'webgpu') {
+		GODOT_CONFIG['experimentalWebGPU'] = true;
+	} else {
+		GODOT_CONFIG['experimentalWebGPU'] = !immersiveSupported;
+	}
+}
+
+(async function () {
 	const statusOverlay = document.getElementById('status');
 	const statusProgress = document.getElementById('status-progress');
 	const statusNotice = document.getElementById('status-notice');
@@ -170,6 +203,9 @@ const engine = new Engine(GODOT_CONFIG);
 		setStatusMode('notice');
 		initializing = false;
 	}
+
+	await configureRenderer();
+	const engine = new Engine(GODOT_CONFIG);
 
 	const missing = Engine.getMissingFeatures({
 		threads: GODOT_THREADS_ENABLED,

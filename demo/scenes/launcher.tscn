@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3 uid="uid://baxwytjwp1ora"]
 
 [ext_resource type="Script" uid="uid://d3d6ercx38bgv" path="res://scripts/launcher.gd" id="1_launch"]
-[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/webxr_prefab.tscn" id="2_prefab"]
+[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/xr_prefab.tscn" id="2_prefab"]
 [ext_resource type="Script" path="res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd" id="3_panel"]
 [ext_resource type="Script" path="res://addons/godot_webgpu/font_bake_anchor.gd" id="4_fontbake"]
 
@@ -13,10 +13,10 @@ ambient_light_color = Color(0.6, 0.66, 0.78, 1)
 ambient_light_energy = 0.6
 
 [sub_resource type="QuadMesh" id="Quad"]
-size = Vector2(1.3, 1.55)
+size = Vector2(1.1, 1.32)
 
 [sub_resource type="BoxShape3D" id="PanelShape"]
-size = Vector3(1.3, 1.55, 0.06)
+size = Vector3(1.1, 1.32, 0.06)
 
 [node name="Launcher" type="Node3D"]
 script = ExtResource("1_launch")
@@ -27,12 +27,14 @@ environment = SubResource("Env")
 [node name="Sun" type="DirectionalLight3D" parent="."]
 transform = Transform3D(0.86, -0.35, 0.37, 0, 0.73, 0.69, -0.51, -0.59, 0.62, 0, 3, 0)
 
+[node name="XRPrefab" parent="." instance=ExtResource("2_prefab")]
+
 [node name="MenuPanel" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.5, -1.4)
 script = ExtResource("3_panel")
 viewport_path = NodePath("Viewport")
 panel_mesh_path = NodePath("PanelMesh")
-panel_size = Vector2(1.3, 1.55)
+panel_size = Vector2(1.1, 1.32)
 viewport_pixel_size = Vector2i(780, 930)
 
 [node name="PanelMesh" type="MeshInstance3D" parent="MenuPanel"]
@@ -58,5 +60,3 @@ grow_vertical = 2
 
 [node name="FontBakeAnchor" type="Label3D" parent="."]
 script = ExtResource("4_fontbake")
-
-[node name="WebXRPrefab" parent="." instance=ExtResource("2_prefab")]
