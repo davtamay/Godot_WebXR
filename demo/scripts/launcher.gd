@@ -13,12 +13,17 @@ const CONTROLS := "res://addons/godot_xr_interaction_toolkit/samples/control_pan
 const LOCOMOTION_ARENA := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 const PERCEPTION := "res://addons/godot_webxr_scene_understanding/samples/perception_managers_demo.tscn"
 const GESTURE_STUDIO := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
+const WEBXR_CAPABILITY_MANIFEST := (
+	"res://addons/godot_webxr_scene_understanding/runtime/"
+	+ "webxr_capability_manifest.gd"
+)
 
 var _streamer: SceneStreamer
 var _status: Label
 
 
 func _ready() -> void:
+	_install_webxr_capability_manifest()
 	_streamer = SceneStreamer.new()
 	add_child(_streamer)
 	_streamer.status.connect(_on_status)
@@ -66,6 +71,25 @@ func _ready() -> void:
 		_streamer.open(GESTURE_STUDIO))
 
 	_add_renderer_chip(vbox)
+
+
+## Session capabilities are immutable after WebXR starts. Soft-load the optional
+## provider's manifest before the user enters AR so every scene reachable from
+## this persistent launcher works on its first visit. Native exports strip the
+## provider path, making this a no-op there.
+func _install_webxr_capability_manifest() -> void:
+	if not OS.has_feature("web"):
+		return
+	if not ResourceLoader.exists(WEBXR_CAPABILITY_MANIFEST, "Script"):
+		return
+	var manifest_script := load(WEBXR_CAPABILITY_MANIFEST) as Script
+	if manifest_script == null:
+		return
+	var manifest := manifest_script.new() as Node
+	if manifest == null:
+		return
+	manifest.name = "WebXRCapabilityManifest"
+	add_child(manifest)
 
 
 func _add_button(parent: Node, name_text: String, desc_text: String, on_press: Callable) -> void:

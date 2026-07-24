@@ -32,7 +32,7 @@ window/stretch/aspect="expand"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot_xr_interaction_toolkit/plugin.cfg", "res://addons/godot_webgpu/plugin.cfg", "res://addons/godot_universal_xr_apk/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot_universal_xr_apk/plugin.cfg", "res://addons/godot_webgpu/plugin.cfg", "res://addons/godot_xr_interaction_toolkit/plugin.cfg")
 
 [rendering]
 
@@ -44,15 +44,101 @@ textures/vram_compression/import_etc2_astc=true
 textures/default_filters/anisotropic_filtering_level=4
 rendering_device/driver.web="webgpu"
 
+[shader_globals]
+
+META_ENVIRONMENT_DEPTH_AVAILABLE={
+"type": "bool",
+"value": false
+}
+META_ENVIRONMENT_DEPTH_TEXTURE={
+"type": "sampler2DArray",
+"value": ""
+}
+META_ENVIRONMENT_DEPTH_TEXEL_SIZE={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+META_ENVIRONMENT_DEPTH_PROJECTION_VIEW_LEFT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_PROJECTION_VIEW_RIGHT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_INV_PROJECTION_VIEW_LEFT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_INV_PROJECTION_VIEW_RIGHT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_FROM_CAMERA_PROJECTION_LEFT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_FROM_CAMERA_PROJECTION_RIGHT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_TO_CAMERA_PROJECTION_LEFT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+META_ENVIRONMENT_DEPTH_TO_CAMERA_PROJECTION_RIGHT={
+"type": "mat4",
+"value": Projection(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+}
+ANDROID_ENVIRONMENT_DEPTH_AVAILABLE={
+"type": "bool",
+"value": false
+}
+ANDROID_ENVIRONMENT_DEPTH_TEXTURE={
+"type": "sampler2DArray",
+"value": ""
+}
+ANDROID_ENVIRONMENT_DEPTH_RESOLUTION={
+"type": "int",
+"value": 0
+}
+ANDROID_ENVIRONMENT_DEPTH_TANFOV_LEFT={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+ANDROID_ENVIRONMENT_DEPTH_TANFOV_RIGHT={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+ANDROID_ENVIRONMENT_DEPTH_CAMERA_TO_WORLD_LEFT={
+"type": "mat4",
+"value": Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+}
+ANDROID_ENVIRONMENT_DEPTH_CAMERA_TO_WORLD_RIGHT={
+"type": "mat4",
+"value": Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
+}
+
+[textures]
+
+vram_compression/import_etc2_astc=true
+
 [xr]
 
 openxr/enabled=true
-openxr/environment_blend_mode=2
 openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_map.tres"
 openxr/reference_space=2
+openxr/environment_blend_mode=2
 openxr/extensions/hand_tracking=true
 openxr/extensions/meta/passthrough=true
 openxr/extensions/meta/scene_api=true
 openxr/extensions/meta/environment_depth=true
 openxr/extensions/androidxr/scene_meshing=true
 openxr/extensions/androidxr/environment_depth=true
+
+[xr_suite]
+
+authoring/feature_modes={
+"hands": "auto",
+"perception": "auto"
+}

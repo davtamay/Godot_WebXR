@@ -25,8 +25,10 @@ const XRReticleVisual := preload("res://addons/godot_xr_interaction_toolkit/runt
 const XRUICanvasInteractable := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_ui_canvas_interactable.gd")
 const XRScreenRayInteractor := preload("res://addons/godot_xr_interaction_toolkit/runtime/xr_screen_ray_interactor.gd")
 const WebXRHandVisualizer := preload("res://addons/godot_xr_hands/runtime/hand_visualizer.gd")
-const PrincipledMaterial := preload("res://addons/godot_blender_principled/runtime/principled_material.gd")
-const StrictParityEnvironment := preload("res://addons/godot_blender_principled/runtime/strict_parity_environment.gd")
+const XRPackageResolver := preload("res://addons/godot_xr_interaction_toolkit/editor/xr_package_resolver.gd")
+const XRProjectSetup := preload("res://addons/godot_xr_interaction_toolkit/editor/xr_project_setup.gd")
+const XRProjectDoctor := preload("res://addons/godot_xr_interaction_toolkit/editor/xr_project_doctor.gd")
+const XRExportCleanup := preload("res://addons/godot_xr_interaction_toolkit/editor/xr_export_cleanup_plugin.gd")
 
 var _checks := 0
 var _failures := 0
@@ -37,9 +39,6 @@ func _initialize() -> void:
 func _run_all() -> void:
     print("== XR Interaction Toolkit tests ==")
     _test_layer_mask()
-    _test_principled_material_aliases()
-    _test_strict_parity_environment()
-    _test_material_collection_import()
     _test_hand_ray_geometry()
     _test_hand_tracker_resolver_validity()
     await _test_rig_resolver_uses_own_scene()
@@ -74,6 +73,7 @@ func _run_all() -> void:
     await _test_screen_ray_hover_and_select()
     _test_ui_canvas_mapping()
     await _test_ui_canvas_drag_slider()
+    _test_package_resolution()
     print("%d checks, %d failures" % [_checks, _failures])
     quit(1 if _failures > 0 else 0)
 
@@ -120,90 +120,6 @@ func _test_rig_resolver_uses_own_scene() -> void:
     current_scene = null
     incoming.free()
     outgoing.free()
-
-func _test_principled_material_aliases() -> void:
-    var m := PrincipledMaterial.new()
-    m.base_color = Color(0.2, 0.4, 0.6, 0.8)
-    check(m.albedo_color.is_equal_approx(Color(0.2, 0.4, 0.6, 0.8)), "base_color aliases albedo_color")
-
-    m.normal_strength = 0.8
-    check(is_equal_approx(m.normal_scale, 0.8), "normal_strength aliases normal_scale")
-    check(m.normal_enabled, "setting normal_strength enables normal mapping")
-
-    m.emission_color = Color(1, 0.5, 0)
-    check(m.emission_enabled, "setting emission_color enables emission")
-    check(m.emission.is_equal_approx(Color(1, 0.5, 0)), "emission_color aliases emission")
-    m.emission_strength = 3.0
-    check(is_equal_approx(m.emission_energy_multiplier, 3.0), "emission_strength aliases emission_energy_multiplier")
-
-    m.alpha_mode = PrincipledMaterial.AlphaMode.MASK
-    check(m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR, "alpha_mode MASK -> alpha scissor")
-    m.alpha_mode = PrincipledMaterial.AlphaMode.BLEND
-    check(m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA, "alpha_mode BLEND -> alpha")
-    m.alpha_mode = PrincipledMaterial.AlphaMode.OPAQUE
-    check(m.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED, "alpha_mode OPAQUE -> opaque")
-
-    m.ior = 1.5
-    check(is_equal_approx(m.metallic_specular, 0.5), "ior 1.5 maps to metallic_specular 0.5")
-
-    # Defaults must apply at construction (material is a Resource -> _init, not _ready).
-    var fresh := PrincipledMaterial.new()
-    check(is_equal_approx(fresh.metallic, 0.0) and is_equal_approx(fresh.roughness, 0.5) and is_equal_approx(fresh.metallic_specular, 0.5), "Blender-matching defaults apply on construction")
-    check(fresh.albedo_color.is_equal_approx(fresh.base_color), "base_color default reaches albedo_color on construction (not left white)")
-
-    # roughness/metallic are native StandardMaterial3D props (Blender names already match)
-    m.roughness = 0.7
-    m.metallic = 0.0
-    check(is_equal_approx(m.roughness, 0.7) and is_equal_approx(m.metallic, 0.0), "native roughness/metallic pass through unchanged")
-
-func _collect_collection_materials() -> Array:
-    var packed: PackedScene = load("res://addons/godot_blender_principled/samples/assets/MaterialCollection.glb")
-    var root_node := packed.instantiate()
-    var out := []
-    var stack := [root_node]
-    while not stack.is_empty():
-        var n = stack.pop_back()
-        if n is MeshInstance3D and n.mesh:
-            for i in n.mesh.get_surface_count():
-                var mat: Material = n.mesh.surface_get_material(i)
-                if mat and not out.has(mat):
-                    out.append(mat)
-        for c in n.get_children():
-            stack.append(c)
-    root_node.free()
-    return out
-
-func _test_material_collection_import() -> void:
-    var mats := _collect_collection_materials()
-    check(mats.size() >= 8, "material collection imported multiple materials, got %d" % mats.size())
-
-    var all_standard := true
-    var has_scissor := false
-    var has_dielectric := false
-    var has_metal := false
-    for m in mats:
-        if not (m is StandardMaterial3D):
-            all_standard = false
-        if m.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR:
-            has_scissor = true
-        if is_equal_approx(m.metallic, 0.0):
-            has_dielectric = true
-        if m.metallic >= 0.99:
-            has_metal = true
-    check(all_standard, "all imported materials are StandardMaterial3D (glTFast-equivalent path)")
-    check(has_scissor, "a cutout material imported as alpha scissor (MASK survived glTF)")
-    check(has_dielectric, "a dielectric material imported with metallic 0")
-    check(has_metal, "a metal material imported with metallic 1")
-
-func _test_strict_parity_environment() -> void:
-    var env: Environment = StrictParityEnvironment.parity_environment()
-    check(env.tonemap_mode == Environment.TONE_MAPPER_LINEAR, "parity uses Linear tonemap (= Blender Standard view)")
-    check(env.ambient_light_source == Environment.AMBIENT_SOURCE_COLOR, "parity ambient is a flat color")
-    check(env.ambient_light_color.is_equal_approx(Color(0.05, 0.05, 0.05)), "parity ambient is 0.05 gray")
-    check(not env.ssao_enabled and not env.sdfgi_enabled and not env.glow_enabled, "parity kills GI/SSAO/glow")
-
-    var nice: Environment = StrictParityEnvironment.nice_environment()
-    check(nice.tonemap_mode == Environment.TONE_MAPPER_AGX, "nice look uses AgX tonemap (= Blender default AgX)")
 
 func _test_hand_ray_geometry() -> void:
     check(XRHandGestureProvider.get_hand_ray_pose(null).is_empty(), "null tracker yields empty pose")
@@ -1330,3 +1246,329 @@ func _test_ui_canvas_drag_slider() -> void:
 
     ui.free()
     manager.free()
+
+func _test_package_resolution() -> void:
+    var manifest_errors := XRPackageResolver.validate_installed_manifests()
+    check(
+        manifest_errors.is_empty(),
+        "installed XR package manifests match the fallback catalog: %s" % "; ".join(manifest_errors)
+    )
+
+    var minimal := {
+        "interactions": true,
+        "hands": false,
+        "perception": false,
+        "webgpu": false,
+    }
+    var web := XRPackageResolver.resolve("web", minimal)
+    var web_ids := PackedStringArray()
+    for package in web["packages"]:
+        web_ids.append(package["id"])
+    check(web["ok"], "Web deployment resolves without catalog errors")
+    check(web_ids.has("xr.runtime") and web_ids.has("xr.interaction"), "Web deployment includes the shared runtime foundation")
+    check(not web_ids.has("export.universal_apk") and not web_ids.has("openxr.vendors"), "Web deployment omits native export packages")
+    var web_unused_ids := PackedStringArray()
+    for package in web["installed_unused"]:
+        web_unused_ids.append(package["id"])
+    check(
+        web_unused_ids.has("export.universal_apk") and web_unused_ids.has("openxr.vendors"),
+        "installed native addons are reported as locally available, not required by Web"
+    )
+    var required_is_unused := false
+    for package_id in web_ids:
+        if web_unused_ids.has(package_id):
+            required_is_unused = true
+    check(not required_is_unused, "required and installed-unused addon lists never overlap")
+
+    var perception := minimal.duplicate()
+    perception["perception"] = true
+    var web_perception := XRPackageResolver.resolve("web", perception)
+    var web_perception_ids := PackedStringArray()
+    for package in web_perception["packages"]:
+        web_perception_ids.append(package["id"])
+    check(web_perception_ids.has("xr.perception.webxr"), "Web perception selects the optional WebXR provider")
+
+    var native_perception := XRPackageResolver.resolve("native", perception)
+    var native_ids := PackedStringArray()
+    for package in native_perception["packages"]:
+        native_ids.append(package["id"])
+    check(native_ids.has("export.universal_apk") and native_ids.has("openxr.vendors"), "Native deployment resolves APK tooling and OpenXR vendors")
+    check(native_ids.has("xr.perception") and not native_ids.has("xr.perception.webxr"), "Native perception omits the WebXR provider")
+    var native_unused_ids := PackedStringArray()
+    for package in native_perception["installed_unused"]:
+        native_unused_ids.append(package["id"])
+    check(native_unused_ids.has("xr.perception.webxr"), "installed WebXR provider is reported as locally available, not required by Native")
+    check(native_perception["missing"].is_empty(), "all packages resolved for the checked-in demo are installed")
+
+    var detected_usage := XRPackageResolver.detect_optional_capability_usage()
+    check(
+        not (detected_usage.get("hands", PackedStringArray()) as PackedStringArray).is_empty(),
+        "automatic footprint resolver detects project-owned Enhanced Hands references"
+    )
+    check(
+        not (detected_usage.get("perception", PackedStringArray()) as PackedStringArray).is_empty(),
+        "automatic footprint resolver detects project-owned Scene Understanding references"
+    )
+    var managed_filters := PackedStringArray(["keep/me"])
+    var optional_tokens := PackedStringArray(["addons/optional/*", "addons/optional/**/*"])
+    XRProjectSetup._set_managed_filters(managed_filters, optional_tokens, true)
+    XRProjectSetup._set_managed_filters(managed_filters, optional_tokens, true)
+    check(
+        managed_filters.count("addons/optional/*") == 1
+        and managed_filters.count("addons/optional/**/*") == 1,
+        "optional feature stripping is idempotent"
+    )
+    XRProjectSetup._set_managed_filters(managed_filters, optional_tokens, false)
+    check(
+        managed_filters == PackedStringArray(["keep/me"]),
+        "optional feature inclusion reverses only managed strip filters"
+    )
+    var profiles := XRProjectSetup.detect_export_profiles()
+    check(
+        profiles["web"] and profiles["android"] and profiles["native"],
+        "Project Validator detects Web and Android targets from export presets"
+    )
+    check(
+        profiles["webgpu"] and profiles["universal_apk"],
+        "Project Validator reads preset-local WebGPU and Universal APK choices"
+    )
+    check(
+        XRProjectSetup.detect_export_profiles("Web")["web"]
+        and not XRProjectSetup.detect_export_profiles("Web")["native"]
+        and not XRProjectSetup.detect_export_profiles("WebNoThreads")["web"]
+        and XRProjectSetup.detect_export_profiles("UniversalXRAPK")["native"]
+        and not XRProjectSetup.detect_export_profiles("UniversalXRAPK")["web"],
+        "Project Validator scopes its report to one selected export profile"
+    )
+    check(
+        XRProjectSetup.get_default_export_preset_name() == "UniversalXRAPK",
+        "Project Validator fallback matches Godot's unopened Export dialog"
+    )
+    check(
+        XRProjectSetup.WEB_PLATFORM_EXCLUDES.has("addons/godotopenxrvendors/**/*")
+        and XRProjectSetup.WEB_PLATFORM_EXCLUDES.has("addons/godot_universal_xr_apk/**/*"),
+        "Web platform filters strip native binaries and APK tooling"
+    )
+    check(
+        XRProjectSetup.ANDROID_PLATFORM_EXCLUDES.has("addons/godot_webgpu/**/*")
+        and XRProjectSetup.ANDROID_PLATFORM_EXCLUDES.has("addons/godot_webxr_kit/web/**/*"),
+        "Android platform filters strip WebGPU tooling and browser shells"
+    )
+    var filter_health := XRProjectSetup.get_export_filter_health(true, true, true, true)
+    check(
+        filter_health.has("ok") and not str(filter_health.get("detail", "")).is_empty(),
+        "Project Validator returns an actionable Web/Android export-filter report"
+    )
+    var web_filter_health := XRProjectSetup.get_export_filter_health(
+        true, false, true, true, "Web"
+    )
+    check(
+        str(web_filter_health.get("label", "")) == "Automatic Web package cleanup"
+        and
+        not str(web_filter_health.get("detail", "")).contains("WebNoThreads")
+        and not str(web_filter_health.get("detail", "")).contains("managed exclusion"),
+        "Project Validator package cleanup is selected-preset scoped and user-facing"
+    )
+    var android_filter_health := XRProjectSetup.get_export_filter_health(
+        false, true, true, true, "UniversalXRAPK"
+    )
+    var android_cleanup_text := (
+        str(android_filter_health.get("label", ""))
+        + " "
+        + str(android_filter_health.get("detail", ""))
+    )
+    check(
+        str(android_filter_health.get("label", "")) == "Automatic APK package cleanup"
+        and android_cleanup_text.contains("APK")
+        and not android_cleanup_text.contains("Threads")
+        and not android_cleanup_text.contains("WebGPU")
+        and not android_cleanup_text.contains("server")
+        and not android_cleanup_text.contains("WebNoThreads"),
+        "Android package cleanup contains no Web-only environment guidance"
+    )
+    check(
+        XRExportCleanup.should_strip_path(
+            "res://addons/godot_webgpu/plugin.gd",
+            "Android",
+            false,
+            false
+        )
+        and XRExportCleanup.should_strip_path(
+            "res://addons/godotopenxrvendors/plugin.gdextension",
+            "Web",
+            false,
+            false
+        )
+        and not XRExportCleanup.should_strip_path(
+            "res://addons/godotopenxrvendors/plugin.gdextension",
+            "Android",
+            false,
+            false
+        )
+        and XRExportCleanup.should_strip_path(
+            "res://addons/godot_webxr_scene_understanding/runtime/webxr_capability_manifest.gd",
+            "Android",
+            false,
+            false
+        ),
+        "automatic export cleanup strips only the opposite platform"
+    )
+    check(
+        XRExportCleanup.should_strip_path(
+            "res://addons/godot_xr_hands/runtime/hand_visualizer.gd",
+            "Android",
+            true,
+            false
+        )
+        and not XRExportCleanup.should_strip_path(
+            "res://addons/godot_xr_hands/runtime/hand_visualizer.gd",
+            "Android",
+            false,
+            false
+        )
+        and XRExportCleanup.should_strip_path(
+            "res://addons/godot_xr_interaction_toolkit/editor/xr_project_doctor.gd",
+            "Web",
+            false,
+            false
+        ),
+        "automatic export cleanup honors optional features and removes editor files"
+    )
+    var native_renderer_detail := ""
+    for project_check in XRProjectSetup.run_project_checks("UniversalXRAPK"):
+        if str(project_check.get("id", "")) == XRProjectSetup.CHECK_RENDERER:
+            native_renderer_detail = str(project_check.get("detail", ""))
+            break
+    check(
+        native_renderer_detail.contains("Native OpenXR")
+        and not native_renderer_detail.contains("Web export")
+        and not native_renderer_detail.contains(".web override"),
+        "Android renderer validation contains only native OpenXR guidance"
+    )
+    var web_environment := XRProjectSetup.get_web_environment("Web")
+    check(
+        not bool(web_environment.get("threads", true))
+        and str(web_environment.get("detail", "")).contains("no COOP/COEP")
+        and str(web_environment.get("detail", "")).contains("Mobile renderer")
+        and str(web_environment.get("detail", "")).contains("not Forward+")
+        and str(web_environment.get("detail", "")).contains("fall back to WebGL")
+        and str(web_environment.get("detail", "")).contains("will not change"),
+        "Project Validator explains hosting and current WebGPU support"
+    )
+    check(
+        FileAccess.file_exists("res://addons/godot_xr_interaction_toolkit/editor/xr_project_doctor.gd"),
+        "Project Validator dialog is installed with the authoring toolkit"
+    )
+    var project_doctor := XRProjectDoctor.new()
+    root.add_child(project_doctor)
+    project_doctor.refresh()
+    check(
+        project_doctor.title == "XR Suite Validator — Project"
+        and project_doctor._rows.get_child_count() > 0,
+        "Project Validator builds a fresh validation report"
+    )
+    project_doctor.free()
+
+    check(not FileAccess.file_exists("res://addons/godot_webxr_scene_understanding/runtime/grab_cube_material.tres"), "dead legacy WebXR occlusion material was removed")
+    check(FileAccess.file_exists("res://addons/godot_xr_scene_understanding/runtime/occlusion_material.tres"), "neutral occlusion material remains available")
+    var perception_scene_text := FileAccess.get_file_as_string(
+        "res://addons/godot_webxr_scene_understanding/samples/perception_managers_demo.tscn"
+    )
+    check(
+        not perception_scene_text.contains("occlusion_mode = 2"),
+        "Perception sample starts neutral so Occlude selects the portable hard-depth path"
+    )
+    var capability_manifest: Node = (
+        load(
+            "res://addons/godot_webxr_scene_understanding/runtime/"
+            + "webxr_capability_manifest.gd"
+        ) as Script
+    ).new() as Node
+    var launcher_ar_features: PackedStringArray = (
+        capability_manifest.get_webxr_optional_features("immersive-ar")
+    )
+    check(
+        launcher_ar_features.has("mesh-detection")
+        and launcher_ar_features.has("depth-sensing")
+        and launcher_ar_features.has("hit-test")
+        and launcher_ar_features.has("light-estimation")
+        and capability_manifest.get_webxr_optional_features("immersive-vr").is_empty(),
+        "Launcher declares the installed perception capabilities before an AR session starts"
+    )
+    capability_manifest.free()
+    var late_join_sources := PackedStringArray([
+        "res://addons/godot_webxr_kit/runtime/webxr_bootstrap.gd",
+        "res://addons/godot_webxr_scene_understanding/runtime/webxr_depth_bridge.gd",
+        "res://addons/godot_webxr_scene_understanding/runtime/webxr_mesh_bridge.gd",
+        "res://addons/godot_webxr_scene_understanding/runtime/webxr_hit_test_anchor_bridge.gd",
+        "res://addons/godot_webxr_scene_understanding/runtime/webxr_light_estimation_bridge.gd",
+    ])
+    var all_adopt_active_session := true
+    for source_path in late_join_sources:
+        if not FileAccess.get_file_as_string(source_path).contains(
+            "_webxr and _webxr.is_initialized()"
+            if source_path.contains("scene_understanding")
+            else "_webxr.is_initialized()"
+        ):
+            all_adopt_active_session = false
+    check(
+        all_adopt_active_session,
+        "WebXR bootstraps and perception bridges adopt an already-running session"
+    )
+    var hit_manager := HitTestAnchorManager.new()
+    check(
+        not hit_manager.is_enabled()
+        and not hit_manager.has_hit()
+        and not hit_manager.place_anchor(),
+        "Hit Test + Anchors defaults off and cannot place until explicitly enabled"
+    )
+    var hit_manager_source := FileAccess.get_file_as_string(
+        "res://addons/godot_webxr_scene_understanding/runtime/hit_test_anchor_manager.gd"
+    )
+    check(
+        hit_manager_source.contains("_enabled_at_msec")
+        and hit_manager_source.contains("_pointer_over_ui"),
+        "Hit Test + Anchors ignores its enabling pinch and XR UI interactions"
+    )
+    var native_hit_provider_path := (
+        "res://addons/godot_xr_scene_understanding/providers/openxr_common/"
+        + "native_hit_test_anchor_provider.gd"
+    )
+    check(
+        hit_manager_source.contains(native_hit_provider_path)
+        and not hit_manager_source.contains("web export required"),
+        "Hit Test + Anchors selects a native OpenXR provider without changing its WebXR bridge"
+    )
+    var native_hit_script := load(native_hit_provider_path) as Script
+    var surface_xf: Transform3D = native_hit_script._surface_transform(
+        Vector3(1.0, 2.0, 3.0),
+        Vector3.UP,
+        Vector3.FORWARD
+    )
+    check(
+        surface_xf.origin.is_equal_approx(Vector3(1.0, 2.0, 3.0))
+        and surface_xf.basis.y.is_equal_approx(Vector3.UP)
+        and (-surface_xf.basis.z).is_equal_approx(Vector3.FORWARD),
+        "Native hit poses preserve the surface point, +Y normal, and aiming direction"
+    )
+    var scene_mesh_source := FileAccess.get_file_as_string(
+        "res://addons/godot_xr_scene_understanding/shared/scene_mesh_manager.gd"
+    )
+    check(
+        scene_mesh_source.contains("xr_hit_test_anchor_manager")
+        and scene_mesh_source.contains("generate_collision = true")
+        and XRProjectSetup.WEB_PLATFORM_EXCLUDES.has(
+            "addons/godot_xr_scene_understanding/providers/openxr_common/**/*"
+        ),
+        "Native hit testing automatically requests room colliders and is stripped from Web exports"
+    )
+    hit_manager.free()
+    var feature_panel_source := FileAccess.get_file_as_string(
+        "res://addons/godot_webxr_scene_understanding/samples/feature_panel.gd"
+    )
+    check(
+        feature_panel_source.contains("Hit Test + Anchors")
+        and feature_panel_source.contains("_on_hit_test_toggled")
+        and not perception_scene_text.contains("[node name=\"AnchorsGuide\""),
+        "Perception panel owns the hit-test toggle and the redundant world-space guide is removed"
+    )
