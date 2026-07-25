@@ -13,6 +13,11 @@ const CONTROLS := "res://addons/godot_xr_interaction_toolkit/samples/control_pan
 const LOCOMOTION_ARENA := "res://addons/godot_xr_interaction_toolkit/samples/locomotion_playground_demo.tscn"
 const PERCEPTION := "res://addons/godot_webxr_scene_understanding/samples/perception_managers_demo.tscn"
 const GESTURE_STUDIO := "res://addons/godot_xr_hands/samples/gesture_playground_demo.tscn"
+# Not a showcase: the on-device verification bench. It carries the A/B dials
+# for whatever is currently unverified, and it lives here so the SAME build
+# reaches it on Link, in the flat simulator, in a WebXR browser session and in
+# the APK -- one export, four targets.
+const FEEL_CHECK := "res://scenes/feel_check.tscn"
 const WEBXR_CAPABILITY_MANIFEST := (
 	"res://addons/godot_webxr_scene_understanding/runtime/"
 	+ "webxr_capability_manifest.gd"
@@ -69,6 +74,9 @@ func _ready() -> void:
 			_streamer.open(PERCEPTION))
 	_add_button(vbox, "Gesture Studio", "record, name, and practice hand poses", func() -> void:
 		_streamer.open(GESTURE_STUDIO))
+	if ResourceLoader.exists(FEEL_CHECK):
+		_add_button(vbox, "Feel Check", "verification bench · A/B dials · live mode readout", func() -> void:
+			_streamer.open(FEEL_CHECK))
 
 	_add_renderer_chip(vbox)
 
