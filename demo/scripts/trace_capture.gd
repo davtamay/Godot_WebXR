@@ -24,13 +24,21 @@ func _ready() -> void:
 	_label.outline_size = 24
 	_label.pixel_size = 0.002
 	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	var camera := _find_camera()
-	if camera:
-		camera.add_child(_label)
-		_label.position = Vector3(0.0, 0.0, -1.6)
-	else:
-		add_child(_label)
-		_label.position = Vector3(0.0, 1.6, -1.6)
+	_label.no_depth_test = true
+	add_child(_label)
+	_label.position = Vector3(0.0, 1.6, -1.6)
+
+func _process(_delta: float) -> void:
+	# Chase the ACTIVE camera every frame instead of parenting at _ready: the
+	# XR rig builds its camera at runtime and Link recentres the space, so a
+	# label pinned at startup can end up behind the user -- in passthrough,
+	# with no sky or environment to orient by, that reads as "nothing starts".
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or _label == null:
+		return
+	var xf := camera.global_transform
+	_label.global_position = xf.origin + xf.basis * Vector3(0.0, 0.0, -1.6)
+	_label.global_basis = xf.basis
 
 	for hand in range(2):
 		var recorder := XRHandTraceRecorder.new()
@@ -56,6 +64,11 @@ func _run_session() -> void:
 			var side := "left" if hand == 0 else "right"
 			var path := "user://hand_traces/%s_%s.res" % [segment["kind"], side]
 			var err: Error = _recorders[hand].stop_and_save(path)
+			if err != OK and FileAccess.file_exists(path):
+				# Never let a stale trace from an earlier run pose as this
+				# segment: a failed save must leave NO file at the path.
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+				print("trace_capture: removed stale %s after failed save" % path)
 			print("trace_capture: %s -> %s (%d frames, %s)" % [
 				path, error_string(err), _recorders[hand].frame_count(), side])
 	await _say("DONE\n\nAll traces saved.\nYou can take the headset off.", Color.GREEN, 3600.0)
@@ -87,7 +100,3 @@ func _say(text: String, color: Color, hold_secs: float) -> void:
 	_label.modulate = color
 	print("trace_capture: %s" % text.replace("\n", " | "))
 	await get_tree().create_timer(hold_secs).timeout
-
-func _find_camera() -> XRCamera3D:
-	var found := find_children("*", "XRCamera3D", true, false)
-	return found[0] as XRCamera3D if not found.is_empty() else null
