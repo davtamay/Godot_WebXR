@@ -52,7 +52,24 @@ this is the better design and should not be traded away for parity.
 than a fixed-path lookup and has no ISDK equivalent — it exists because WebXR
 runtimes expose canonical tracker paths before they carry useful joints.
 
-### Status
+### Status (updated 2026-07-25)
 
-Item 3 is specified: `godot-xr-suite/docs/hand-signal-conditioning-design.md`.
-Sequencing chosen: foundation first (3, then 4), then the rest.
+| # | Item | Size | Status |
+|---|---|---|---|
+| 1 | Tweened grab movement with perceived distance | S | **Done** — `transit_duration` / `transit_blend` |
+| 2 | Consensus throw velocity with release dead-zone | S | **Done** — `throw_consensus`, `throw_peak_bias = 0.80`, earned in on device |
+| 3 | Adaptive signal conditioning (One Euro) | M | **Done** — conditioning on; every consumer routed through the resolver |
+| 7 | Analog pinch strength / general "use" axis | S | **Done** — `use_value` / `set_use_value`; sprayer and blaster NOT yet wired to it |
+| 4 | Synthetic/display hand | L | Not started |
+| 5 | Grab scoring over surfaces | L | Not started |
+| 6 | Poke fidelity beyond hysteresis | M | Not started — **recommended next** (medium, no dependencies) |
+| 8 | Locomotion mode gate | M | Not started |
+
+Item 3's design note: `godot-xr-suite/docs/hand-signal-conditioning-design.md`.
+Original sequencing was 3 then 4; 1, 2 and 7 were pulled forward because they
+are S-sized and each fixed a directly reported feel complaint.
+
+Open duplication from item 7: `trigger_progress` vs `use_value` — decide and
+collapse one.
+
+Full open-bug list and cross-device state: `docs/SESSION_HANDOFF_2026-07-25.md`.
