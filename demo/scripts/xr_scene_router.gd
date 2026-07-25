@@ -10,6 +10,8 @@ extends Node
 
 signal scene_change_failed(scene_path: String, message: String)
 
+const MENU_SCENE := "res://scenes/launcher.tscn"
+
 var _changing := false
 
 
@@ -39,10 +41,32 @@ func _replace_scene(scene_path: String) -> void:
 	# disable XR rendering.
 	tree.root.add_child(incoming)
 	tree.current_scene = incoming
+	_ensure_menu_control(incoming, scene_path)
 	if is_instance_valid(outgoing):
 		outgoing.free()
 
 	_changing = false
+
+
+## Every streamed scene gets a way back, injected here rather than added to each
+## scene file: a headset user who enters a showcase with no menu control has to
+## take the headset off to get out, which makes testing scene-by-scene painful.
+## The launcher itself is skipped -- it IS the menu.
+func _ensure_menu_control(scene: Node, scene_path: String) -> void:
+	if scene_path == MENU_SCENE:
+		return
+	if scene is Node3D and _find_menu_control(scene) == null:
+		scene.add_child(BackToMenuButton.new())
+
+
+func _find_menu_control(root: Node) -> Node:
+	if root is BackToMenuButton:
+		return root
+	for child in root.get_children():
+		var found := _find_menu_control(child)
+		if found != null:
+			return found
+	return null
 
 
 func _fail(scene_path: String, message: String) -> void:
