@@ -1,0 +1,28 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="PackedScene" path="res://addons/godot_webxr_kit/xr_prefab.tscn" id="1_rig"]
+[ext_resource type="PackedScene" path="res://addons/godot_xr_interaction_toolkit/xr_floor.tscn" id="2_floor"]
+[ext_resource type="Script" path="res://scripts/trace_capture.gd" id="3_capture"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_tc1"]
+
+[sub_resource type="Sky" id="Sky_tc1"]
+sky_material = SubResource("ProceduralSkyMaterial_tc1")
+
+[sub_resource type="Environment" id="Environment_tc1"]
+background_mode = 2
+sky = SubResource("Sky_tc1")
+ambient_light_source = 3
+
+[node name="TraceCapture" type="Node3D"]
+script = ExtResource("3_capture")
+
+[node name="XRPrefab" parent="." instance=ExtResource("1_rig")]
+
+[node name="XRFloor" parent="." instance=ExtResource("2_floor")]
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, 0.383022, -0.321394, 0, 0.642788, 0.766044, 0.5, -0.663414, 0.55667, 0, 0, 0)
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_tc1")
