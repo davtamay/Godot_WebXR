@@ -126,6 +126,7 @@ vram_compression/import_etc2_astc=true
 [xr]
 
 openxr/enabled=true
+shaders/enabled=true
 openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_map.tres"
 openxr/reference_space=2
 openxr/environment_blend_mode=2
