@@ -14,9 +14,10 @@ const _SEGMENTS := [
 const _COUNTDOWN := 5
 
 var _label: Label3D
-var _recorders := []
+var _recorders: Array[XRHandTraceRecorder] = []
 var _probe := XRTrackerHandPoseSource.new()
 var _probe_frame := XRHandFrame.new()
+var _session_started := false
 
 func _ready() -> void:
 	_label = Label3D.new()
@@ -28,11 +29,23 @@ func _ready() -> void:
 	add_child(_label)
 	_label.position = Vector3(0.0, 1.6, -1.6)
 
+	for hand in range(2):
+		var recorder := XRHandTraceRecorder.new()
+		recorder.hand = hand
+		add_child(recorder)
+		_recorders.append(recorder)
+
+	# Exactly one session, started once. The recorder nodes above are the only
+	# ones that will ever exist -- a previous revision accidentally ran this
+	# from _process and buried the renderer under thousands of spawned nodes.
+	_session_started = true
+	_run_session()
+
+## Only responsibility: keep the prompt in front of the ACTIVE camera. The XR
+## rig builds its camera at runtime and Link recentres the space, so a label
+## pinned at _ready can end up behind the user -- in passthrough, with nothing
+## else rendered, that reads as a black or empty scene.
 func _process(_delta: float) -> void:
-	# Chase the ACTIVE camera every frame instead of parenting at _ready: the
-	# XR rig builds its camera at runtime and Link recentres the space, so a
-	# label pinned at startup can end up behind the user -- in passthrough,
-	# with no sky or environment to orient by, that reads as "nothing starts".
 	var camera := get_viewport().get_camera_3d()
 	if camera == null or _label == null:
 		return
@@ -40,20 +53,11 @@ func _process(_delta: float) -> void:
 	_label.global_position = xf.origin + xf.basis * Vector3(0.0, 0.0, -1.6)
 	_label.global_basis = xf.basis
 
-	for hand in range(2):
-		var recorder := XRHandTraceRecorder.new()
-		recorder.hand = hand
-		add_child(recorder)
-		_recorders.append(recorder)
-
-	_run_session()
-
 func _run_session() -> void:
 	await _say("HAND TRACE CAPTURE\n\n3 segments, ~1 minute total.\nKeep your hands tracked as hands\n(put controllers down).", Color.WHITE, 6.0)
 	for segment in _SEGMENTS:
-		# Never record an empty room: a session once auto-ran to completion
-		# while nobody was looking into the headset yet. Gate every segment
-		# on both hands actually tracking.
+		# Never record an empty room: gate every segment on both hands
+		# actually tracking before the countdown starts.
 		await _wait_for_hands()
 		for tick in range(_COUNTDOWN, 0, -1):
 			await _say("%s\n\nstarting in %d" % [segment["text"], tick], Color.YELLOW, 1.0)
