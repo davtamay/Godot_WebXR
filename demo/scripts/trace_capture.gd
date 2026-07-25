@@ -15,6 +15,8 @@ const _COUNTDOWN := 5
 
 var _label: Label3D
 var _recorders := []
+var _probe := XRTrackerHandPoseSource.new()
+var _probe_frame := XRHandFrame.new()
 
 func _ready() -> void:
 	_label = Label3D.new()
@@ -41,6 +43,10 @@ func _ready() -> void:
 func _run_session() -> void:
 	await _say("HAND TRACE CAPTURE\n\n3 segments, ~1 minute total.\nKeep your hands tracked as hands\n(put controllers down).", Color.WHITE, 6.0)
 	for segment in _SEGMENTS:
+		# Never record an empty room: a session once auto-ran to completion
+		# while nobody was looking into the headset yet. Gate every segment
+		# on both hands actually tracking.
+		await _wait_for_hands()
 		for tick in range(_COUNTDOWN, 0, -1):
 			await _say("%s\n\nstarting in %d" % [segment["text"], tick], Color.YELLOW, 1.0)
 		for recorder in _recorders:
@@ -53,6 +59,28 @@ func _run_session() -> void:
 			print("trace_capture: %s -> %s (%d frames, %s)" % [
 				path, error_string(err), _recorders[hand].frame_count(), side])
 	await _say("DONE\n\nAll traces saved.\nYou can take the headset off.", Color.GREEN, 3600.0)
+
+## Blocks until BOTH hands are tracking as hands (raw path, one probe per
+## rendered frame). The prompt names whichever hand is still missing.
+func _wait_for_hands() -> void:
+	var announced := ""
+	while true:
+		var left := _probe.capture(0, Time.get_ticks_usec(), _probe_frame)
+		var right := _probe.capture(1, Time.get_ticks_usec(), _probe_frame)
+		if left and right:
+			return
+		var missing := "BOTH HANDS"
+		if left and not right:
+			missing = "RIGHT HAND"
+		elif right and not left:
+			missing = "LEFT HAND"
+		var text := "SHOW %s\n\nHold your hands up in view\n(controllers down)\nCapture starts when both track." % missing
+		if text != announced:
+			announced = text
+			print("trace_capture: waiting -- %s missing" % missing)
+		_label.text = text
+		_label.modulate = Color.CYAN
+		await get_tree().process_frame
 
 func _say(text: String, color: Color, hold_secs: float) -> void:
 	_label.text = text
