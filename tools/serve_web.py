@@ -9,11 +9,18 @@ optional header suppression, so one script covers both hosting profiles:
   --no-isolation: plain static hosting (GitHub-Pages-like) -> what Godot
       NON-threaded (nothreads) web exports are built for.
 
-Local testing only. Headset/WebXR device testing needs HTTPS hosting.
+WebXR needs a secure context. Two ways to get one against a headset:
+
+  adb reverse tcp:8000 tcp:8000, then browse http://localhost:8000 on the
+      device -- localhost counts as trustworthy, so no certificate is needed.
+      Cheapest when the headset is on USB, but the tunnel dies with the cable.
+  --https CERT KEY, then browse https://<lan-ip>:<port> -- survives without
+      adb, at the cost of accepting a self-signed certificate once per device.
 """
 from __future__ import annotations
 
 import argparse
+import ssl
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -36,13 +43,22 @@ def main() -> None:
     parser.add_argument("--directory", default=".")
     parser.add_argument("--no-isolation", action="store_true",
                         help="serve without COOP/COEP (plain-host profile)")
+    parser.add_argument("--https", nargs=2, metavar=("CERT", "KEY"),
+                        help="serve TLS with this PEM cert/key so a headset can "
+                             "reach a secure context over the LAN")
     args = parser.parse_args()
 
     Handler.isolate = not args.no_isolation
     handler = partial(Handler, directory=args.directory)
     server = ThreadingHTTPServer(("0.0.0.0", args.port), handler)
+    scheme = "http"
+    if args.https:
+        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.load_cert_chain(certfile=args.https[0], keyfile=args.https[1])
+        server.socket = context.wrap_socket(server.socket, server_side=True)
+        scheme = "https"
     profile = "isolated (COOP/COEP)" if Handler.isolate else "plain (no isolation)"
-    print(f"Serving {args.directory} on http://localhost:{args.port} [{profile}]")
+    print(f"Serving {args.directory} on {scheme}://localhost:{args.port} [{profile}]")
     server.serve_forever()
 
 
