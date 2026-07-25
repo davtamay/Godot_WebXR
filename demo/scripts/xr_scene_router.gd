@@ -43,7 +43,17 @@ func _replace_scene(scene_path: String) -> void:
 	tree.current_scene = incoming
 	_ensure_menu_control(incoming, scene_path)
 	if is_instance_valid(outgoing):
-		outgoing.free()
+		# free() deletes IMMEDIATELY, and immediate deletion is illegal while the
+		# parent is mid add/remove -- which the root is here, because the
+		# add_child() above is still unwinding. On device (Quest 3 APK) it did not
+		# degrade, it FAILED: 'Parent node is busy adding/removing children'. The
+		# outgoing scene then stayed in the tree for the rest of the session, so
+		# every scene change stacked another whole rig -- XR bootstrap,
+		# interactors and all -- into the interaction groups the live rig scans.
+		# Disable it now so it cannot act during its last frame, and let the tree
+		# delete it at a point where deletion is legal.
+		outgoing.process_mode = Node.PROCESS_MODE_DISABLED
+		outgoing.queue_free()
 
 	_changing = false
 
