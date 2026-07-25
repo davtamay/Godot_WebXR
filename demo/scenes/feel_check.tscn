@@ -1,9 +1,9 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="PackedScene" path="res://scenes/xr_playground.tscn" id="1_playground"]
+[ext_resource type="PackedScene" path="res://addons/godot_xr_interaction_toolkit/samples/workshop_demo.tscn" id="1_workshop"]
 [ext_resource type="Script" path="res://scripts/feel_check.gd" id="2_feel"]
 
 [node name="FeelCheck" type="Node3D"]
 script = ExtResource("2_feel")
 
-[node name="XRPlayground" parent="." instance=ExtResource("1_playground")]
+[node name="WorkshopDemo" parent="." instance=ExtResource("1_workshop")]
