@@ -185,3 +185,98 @@ this once on first import and it self-heals.
 
 Deferred follow-up (unchanged): 5 toolkit files use absolute-path `preload(...)`,
 so the toolkit folder cannot be renamed without edits. Out of scope for this split.
+
+## 2026-07-26 - Hand Rays Source The Platform Aim Pose; The Derivation Is The Fallback
+
+Decision: `XRControllerHandAdapter._hand_aim_pose` prefers the runtime's own
+aim pose for a tracked hand (`prefer_platform_aim`, default true) and keeps
+the wrist->knuckle derivation as the fallback; the shipped rig sets
+`prefer_hand_ray = true` so the hand modality flows through that path -- and
+through the on-device-tuned aim stabilizer and pinch-select anchoring --
+instead of taking the controller node's raw pose.
+
+Measured basis (standalone Quest 3, runtime 205.206.0): the runtime
+advertises `XR_EXT_hand_interaction` and publishes an aim pose on >95% of
+tracked-hand samples; the derived ray separates from it by 29.5 deg mean
+(right) / 48.1 deg (left). Two switches were both required: the action-map
+profile binding AND `xr/openxr/extensions/hand_interaction_profile=true` --
+Godot requests the extension only when the setting is on
+(openxr_hand_interaction_extension.cpp:59), so the 2026-07-25 binding alone
+was inert on every runtime.
+
+This supersedes the rationale (not the outcome) of 2026-07-03 "Far Rays
+Prefer The Runtime Aim Pose": that decision picked the OS pose by taking the
+controller node's pose raw. The hand path now sources the same OS pose, so
+preferring the hand path keeps that decision's winner while adding the tuned
+conditioning. Physical controllers are unaffected (the hand tracker is dead
+while one is held). Quest Link keeps the derived ray: its runtime does not
+advertise the extension at all.
+
+Amendment, same day, after the first in-headset run: a publishing runtime
+also WITHHOLDS the pose per frame when it stops trusting a hand (measured:
+24 of 26 withheld samples were the left hand, in look-away windows), and
+falling back to the derived ray for those frames swept the visible line by
+the full 40-52 deg separation -- reported on device as the left ray jumping
+from the UI to the far right. Once a hand has ever had a platform pose, a
+withheld frame now HOLDS the last platform ray; only runtimes that never
+publish (Link) use the derived fallback.
+
+Second amendment, same day: a hand leaving view ends in FULL data loss whose
+terminal extrapolated frames sit inside the FOV cone, so the gate expires the
+hand as "gone" and the ray vanished on look-away (left hand, on device). No
+cone angle can classify frames that lie about position. The platform-aim
+hold now survives full tracker loss for platform_aim_hold_sec (default 10 s,
+both hands), then hides the ray. Ray-only; the gate and mesh are untouched.
+
+Third amendment, same day: the runtime's last ~0.4 s of published poses
+before a withhold wander with the dying extrapolation, so parking on the
+last published pose parks displaced ("shifts a little on look-away", left
+hand, on device). The park now comes from the newest settled sample older
+than platform_aim_park_backtime_sec (1.0 s), garbage republish bursts do not
+unpark (platform_aim_resume_sec, 0.75 s), and a loss beyond the grace window
+clears all park state so reacquisition is a clean slate.
+
+Fourth and fifth amendments, same day, after TWO on-device rejections in a
+row: parking on any withheld frame froze the ray in ordinary use ("stuck"),
+and its correction still demanded a continuous healthy streak before
+un-parking, which dirty-but-usable streams never satisfy -- the ray floated
+detached from a visibly tracked hand. Both hysteresis machineries were
+deleted. The shipped algorithm is the user's own framing ("right hand
+behavior is the role model"): a published pose drives the ray the instant
+it exists, unconditionally; memory only fills gaps -- last pose under
+platform_aim_fill_sec (0.25 s), the aged pre-wander park pose beyond it,
+hidden after platform_aim_hold_sec (10 s) of loss. The accepted cost is the
+ray briefly following the loss dance's 150-300 ms garbage republish bursts,
+which was never the reported problem; the machineries that suppressed it
+were. _test_micro_withhold_resumes_instantly and
+_test_republish_after_park_resumes_instantly each fail against one of the
+rejected versions.
+
+Sixth amendment, same day, after the simplified shape earned in ("behaves
+way better"): a long gap on a STILL-TRACKED hand parked the ray in space
+while the visible hand walked away. The gap pose now translates with the
+palm-anchored delta since the gap began (the pinch stabilizer's own
+mechanism); direction stays held; a fully lost hand still parks in space.
+
+Seventh amendment, same day ("way better", one slight movement left on
+look-away): measured left gap showed ~2 deg of actual aim drift -- the
+visible movement was gap-boundary seams. The aged history now applies only
+when the tail disagrees with it beyond platform_aim_wander_threshold_deg
+(5 deg); the gap display is computed once per frame in _process and stays
+put across the capture's one-frame liveness blips. Right-vs-left remains a
+data difference, not a code difference: five aim-stream gaps in 40 s on the
+left, zero on the right.
+
+Eighth amendment, same day ("clear difference in behavior, left has some
+issue"): the log showed the real scale -- the LEFT aim stream churns, 11
+withhold/republish cycles in 27 s of ordinary use against ZERO on the
+right. Under churn any frozen-direction gap display is a visible stutter,
+so a gap on a still-tracked hand no longer freezes at all: the palm frame
+drives the ray through the offset calibrated at gap start (recalibrated to
+the aged history at the fill boundary only if the tail was wander), exact
+continuity at gap entry, moving with the hand throughout. Parking now only
+happens for a hand that is actually lost.
+
+Full evidence: docs/XR_INPUT_PRACTICES.md "Standalone answered it".
+Verification: test_platform_aim (14 checks, 15 mutations caught across its
+lifetime); in-headset verdict pending.

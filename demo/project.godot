@@ -131,6 +131,7 @@ openxr/default_action_map="res://addons/godot_webxr_kit/openxr/default_action_ma
 openxr/reference_space=2
 openxr/environment_blend_mode=2
 openxr/extensions/hand_tracking=true
+openxr/extensions/hand_interaction_profile=true
 openxr/extensions/meta/passthrough=true
 openxr/extensions/meta/scene_api=true
 openxr/extensions/meta/environment_depth=true

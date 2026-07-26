@@ -70,7 +70,21 @@ Each was measured, not assumed.
 
 ## Ranked next steps
 
-### 1. Test on STANDALONE, not Link. Highest value, and Link cannot do it.
+### 1. DONE 2026-07-26 — standalone answered yes, and the change is in.
+
+Standalone Quest 3 advertises `XR_EXT_hand_interaction` and publishes an aim
+pose for tracked hands (>95% of live samples; mean separation from the
+derived ray 29.5° right / 48.1° left — a different ray, not a noisier one).
+Godot only requests the extension when
+`xr/openxr/extensions/hand_interaction_profile` is true, which nothing had
+set — the action-map binding alone was inert everywhere. Both switches are on
+now, `_hand_aim_pose` prefers the platform pose behind `prefer_platform_aim`
+(derived ray is the fallback, unchanged), and `tests/test_platform_aim.gd`
+pins it. Full evidence: `docs/XR_INPUT_PRACTICES.md`, "Standalone answered
+it". Awaiting in-headset verdict; profile attribution and the WebXR run of
+the same probe are still open.
+
+### (superseded) Test on STANDALONE, not Link. Highest value, and Link cannot do it.
 
 The derived ray takes its direction from a wrist-to-knuckle baseline of ~8 cm,
 so a few mm of joint noise becomes degrees of angular error, which is tens of
