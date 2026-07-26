@@ -217,8 +217,94 @@ Each step is separately testable on device, and step 1 alone may be sufficient.
 Step 2 is the one that helps every device regardless of what its runtime
 publishes, which is an argument for doing it even if step 1 succeeds.
 
-**Not yet verified:** that Quest over Link advertises
-`XR_EXT_hand_interaction` — extensions are runtime-advertised and Link is a
-different runtime path from standalone. This does not gate the plan (the
-fallback covers it, and WebXR needs no extension at all), but it does decide
-whether step 1 is testable in the current Link setup or only on-device.
+---
+
+## What actually happened
+
+Three things were tried on device. The order they are listed in is not the
+order of their value.
+
+**Step 1 (platform aim) is bound but inert.** See above. No device has
+confirmed it.
+
+**Step 2 (`XRAimStabilizer`) shipped and helped slightly.** A range-scaled
+deadband replacing the One Euro pass on the derived ray. The endpoint anchoring
+was implemented and then removed: no test could be written that asserted a
+guarantee it actually makes, because when the direction is steady, holding it
+is already a zero-error candidate and always wins. Unity's behaves the same
+way. One Euro is still selectable via `use_aim_stabilizer`.
+
+**The actual bug was neither, and it was a sign error.**
+`XRHandGestureProvider.get_hand_ray_pose` picks its pitch axis from
+index-knuckle to pinky-knuckle. That axis mirrors between hands, so the code
+flips the pitch sign for the right hand to cancel it. But when the pinky was
+not reported it fell back to `fwd.cross(Vector3.UP)` -- fixed chirality, does
+not mirror -- while still applying the handedness flip. The two hands therefore
+pitched in **opposite** directions in the fallback, and the fallback is taken
+exactly when a hand is leaving camera view.
+
+Verified by reverting: the right hand keeps its correct slight downward pitch
+(y ~ -0.15) while the left flips to a sharp upward deflection (y ~ +0.88).
+`test_hand_ray_symmetry` builds mirrored fixtures, asserts mirrored rays, and
+fails against the old code.
+
+This is the "left hand ray drifts up and right when I look away" report that
+survived eight attempted fixes. None of them could have worked: the FOV cone,
+the tracked-joint thresholds, the reacquisition debounce, and the One Euro
+tuning were all aimed at a symptom produced by a chirality bug two layers
+below them.
+
+**Lesson worth keeping.** Every one of those eight attempts was a plausible
+mechanism reasoned from the observed behaviour. What finally found it was
+reading the code path that PRODUCES the ray, rather than reasoning about what
+could perturb it. Symmetry is cheap to test and was never tested; a
+left-vs-right fixture would have caught this on day one.
+
+## Correction: what the FOV cone is actually for
+
+The cone was built to suppress the drift above. With the real cause fixed, it
+looked like dead weight, so it was defaulted off -- and on device the left hand
+then **disappeared** on look-away.
+
+The reason is that the cone is doing a job its name does not describe. It
+CLASSIFIES the loss. A hand leaving view is unobservable but still on the user,
+and must freeze; a hand whose data stops arriving may genuinely be gone, and
+must expire after `hold_duration_sec`. The geometric test is the only available
+signal that separates those two states. Remove it and out-of-view loss becomes
+indistinguishable from data loss, so the hand expires and vanishes.
+
+It is back on, and `_test_fov_gate_ships_enabled` pins it with that reasoning,
+because the class doc alone would lead a future reader to exactly the wrong
+conclusion.
+
+Its cost is accepted rather than solved: freezing parks the hand MESH in space
+while the real hand moves on, seen on device as the hand sitting offset in
+front of the real one for a beat before snapping back. A hand that vanishes is
+worse, and has been rejected on device before.
+
+**Next smallest step for that artifact:** drive the mesh from the raw tracker
+while the RAY uses the frozen pose. The ray is what needs stability; the mesh
+only needs to be where the hand is. Untested, and it would need the mesh's
+consumers checked for anything that assumes both read the same source.
+
+**Measured, and the answer was no.** Quest over Link (Oculus runtime 1.205.0)
+does **not** advertise `XR_EXT_hand_interaction`. The profile is now bound in
+`default_action_map.tres`, and `_probe_platform_aim` in
+`xr_controller_hand_adapter.gd` reported `platform=false` on every sample
+including while hand tracking was live; the boot log never mentions the profile
+at all, because Godot registers it only when the runtime advertises the
+extension.
+
+Consequences, stated plainly:
+
+- The binding is **inert over Link**. It changes nothing there, and nothing
+  observed in that session can be credited to it.
+- Step 1 is therefore **unverified anywhere**. It remains the right design —
+  WebXR delivers the aim pose unconditionally, and the extension is
+  multi-vendor — but no device has yet confirmed it end to end.
+- The next measurement is the same probe run **standalone on Quest** (a
+  different runtime path from Link), or on Android XR / Pico / SteamVR. Switch
+  `debug_platform_aim` on and read the `[aim-probe]` lines.
+- **Step 2 is now the higher-value work**, because it is backend-independent:
+  it improves the derived ray that every device is still using, including Link
+  and including any runtime that never advertises the extension.
