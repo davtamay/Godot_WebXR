@@ -62,7 +62,7 @@ runtimes expose canonical tracker paths before they carry useful joints.
 | 7 | Analog pinch strength / general "use" axis | S | **Done** — `use_value` / `set_use_value`; sprayer and blaster NOT yet wired to it |
 | 4 | Synthetic/display hand | L | Not started |
 | 5 | Grab scoring over surfaces | L | Not started |
-| 6 | Poke fidelity beyond hysteresis | M | Not started — **recommended next** (medium, no dependencies) |
+| 6 | Poke fidelity beyond hysteresis | M | **Done** — one shared `XRPokeEvaluator`; approach gate, cancel, drag-vs-press, pinning, enter/exit tolerance. Earned in on Quest 2026-07-25. Recoil assist NOT built. |
 | 8 | Locomotion mode gate | M | Not started |
 
 Item 3's design note: `godot-xr-suite/docs/hand-signal-conditioning-design.md`.
@@ -73,3 +73,27 @@ Open duplication from item 7: `trigger_progress` vs `use_value` — decide and
 collapse one.
 
 Full open-bug list and cross-device state: `docs/SESSION_HANDOFF_2026-07-25.md`.
+
+## Item 6 as shipped (2026-07-25)
+
+Design and full earn-in record: `godot-xr-suite/docs/poke-fidelity-design.md`.
+
+Built: one `XRPokeEvaluator` owning the press decision for all three poke
+surfaces; an approach gate that is the OR of entry-through-face and approach
+angle; `cancelled` as distinct from `released`; drag-vs-press with a terminal
+`drag_ended`; surface pinning for the marker; separate enter/exit tolerance
+(`bounds_retain_scale`); and `XRPokeProfile`, one resource carrying a project's
+whole poke feel.
+
+**NOT built: recoil assist with velocity-dependent window expansion.** Item 6
+is therefore not 1:1 with the ISDK list. The entry-through-face gate is also
+deliberately not Meta's technique — it rescues a steep deliberate poke that an
+angle test alone falsely rejects, and the two are OR'd because neither
+dominates.
+
+Four pre-existing bugs surfaced while doing this, none of them findable by
+running the tests: `_local_normal()`'s Z arms were inverted (the DEFAULT face
+measured depth with the wrong sign), the poke button cleared its own sample
+history, `source_id` was keyed by loop position so a reconnecting controller
+could inherit another hand's armed state, and the eye-height calibrator
+"corrected" an absent-tracking reading by raising the origin 1.19 m.
