@@ -112,6 +112,15 @@ invalid commits get explicit rejection feedback, never silence.
   condition).
 - `test_hand_conditioning` has exactly ONE known pre-existing failure (the
   head-pose fixture self-check). Unrelated; do not fold into new work.
+- **`agent/far-grab-modes` is 38 commits ahead of `master` and unmerged.**
+  The suite's trunk is `master`, and everything since the far-grab work --
+  poke fidelity follow-ups, the aim-ray chirality fix, XRAimStabilizer,
+  platform aim, teleport lifecycle, runtime microgestures -- lives only on
+  that branch. Nothing downstream sees any of it until it merges. Decide
+  deliberately whether to merge as-is or to split the branch: it now carries
+  several unrelated features under a name that describes only the first.
+  Full suite state at handoff: 14 suites, 13 PASS, 1 known pre-existing
+  failure above.
 
 ## Working rules that were earned the hard way (unchanged + new)
 
