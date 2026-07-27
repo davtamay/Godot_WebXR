@@ -280,3 +280,62 @@ happens for a hand that is actually lost.
 Full evidence: docs/XR_INPUT_PRACTICES.md "Standalone answered it".
 Verification: test_platform_aim (14 checks, 15 mutations caught across its
 lifetime); in-headset verdict pending.
+
+## 2026-07-26 - Microgesture Reliability: Runtime Detector Additive, Consumer Layer Hardened
+
+Decision, three parts, driven by the user's parity goal ("as reliable as
+Meta's") and two source sweeps (Meta ISDK read for technique only; our
+suite inventoried file-by-file):
+
+1. **The runtime's microgesture detector is adopted as an ADDITIVE source.**
+   XR_META_hand_tracking_microgestures is an open OpenXR registry
+   extension -- none of the ISDK's license applies -- and standalone
+   Quest 3 advertises it (boot log: Found AND Enabled; it rides the same
+   hand_interaction_profile setting as the aim work). The action map now
+   binds its five inputs (swipe l/r/f/b, thumb tap) to mg_* bool actions;
+   xr_native_microgesture_source.gd surfaces them through the existing
+   XRMicrogestureSource contract; the locomotion driver prefers the
+   platform source PER HAND once it proves live
+   (prefer_platform_microgestures), keeping the joint recognizer as the
+   only source on WebXR/Link/anything without the extension. Standing
+   rule honored: additive, never a replacement. Bonus: the runtime emits
+   FORWARD/BACKWARD, which the joint recognizer never did, so the
+   dedicated aim-toggle/commit mappings stop being dead code on Quest.
+
+2. **The teleport consumer layer had four measured holes, now fixed and
+   pinned** (the Meta sweep's core lesson is that ALL of Meta's
+   engineering is session gating and arc lifecycle -- detection is 100%
+   runtime-side): a hidden arc kept its stale target and a later tap
+   teleported to it; a gesture on the other hand silently stole the aim
+   with no cancel; a snap turn rotated the rig under a live arc; and
+   disabling locomotion mid-aim suspended rather than ended the aim.
+   All in xr_locomotion.gd; test_microgesture_locomotion pins them
+   (3 mutations caught). Root cause of "teleport comes out of nowhere"
+   in the shipped demo: the joint recognizer only emits LEFT/RIGHT/TAP,
+   so TAP was both arm and commit, and a fumbled swipe (travel below the
+   swipe minimum) classifies as TAP.
+
+3. **The thumb-down commit race is closed consumer-side**:
+   pose_release_grace 0.20 -> 0.45 in the locomotion binding and sample,
+   covering the measured worst-case commit chain (post-UP cooldown 0.20 +
+   smoothed dead-band transit ~0.1 + activation 0.06 ~= 0.36 s). No
+   recognizer code or thresholds were touched (standing rule).
+
+Deferred, recorded for the next microgesture session: Meta's session-gate
+model (arming precondition measured shoulder-relative; exit condition =
+the physical negation of the gesture surface, i.e. open index; gate by
+unsubscribing so ungated gestures are never delivered), audio mode
+feedback, an explicit invalid-commit rejection event, and the recognizer's
+silent dead band between maximum_tap_travel and minimum_index_travel.
+
+Amendment, same day (David): the platform detector defaults OFF
+(use_platform_microgestures = false -- PORTABLE mode, and portable mode
+ignores the platform source outright rather than letting both fire). The
+product targets WebXR and Galaxy XR / Android XR through one universal
+APK, and those runtimes only ever run the joint recognizer -- so a Quest
+test session with the extension active measures Meta's recognizer, not
+the one that ships everywhere, "a false idea about how standard
+microgestures work". Platform mode is opt-in per driver, or session-wide
+from the headset via the new feel_check MICRO DETECTOR dial
+(XRMicrogestureLocomotionDriver.session_platform_override), which also
+serves as the parity reference to tune the portable recognizer against.

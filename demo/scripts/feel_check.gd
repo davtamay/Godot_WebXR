@@ -15,11 +15,20 @@ extends Node3D
 
 var _gesture_label: Label3D
 var _mode_label: Label3D
+var _micro_source_label: Label3D
 var _arbiter: XRInteractionArbiter
 
 func _ready() -> void:
 	_gesture_label = _make_label(Vector3(-0.3, 1.3, -0.55))
 	_make_button(Vector3(-0.3, 1.0, -0.55), _on_toggle_gesture_source)
+
+	# Which microgesture DETECTOR drives locomotion, session-wide: PORTABLE
+	# is the joint recognizer -- the code path WebXR, Galaxy XR and Link
+	# actually run -- and is the default, because testing on a Quest with the
+	# platform extension active measures Meta's recognizer, not ours.
+	# PLATFORM is the runtime detector (Quest-only), the parity reference.
+	_micro_source_label = _make_label(Vector3(-0.9, 1.3, -0.55))
+	_make_button(Vector3(-0.9, 1.0, -0.55), _on_toggle_micro_source)
 
 	# The arbiter is opt-in, so the earn-in scene creates its own rather than
 	# relying on the rig prefab carrying one.
@@ -72,6 +81,16 @@ func _on_toggle_gesture_source() -> void:
 		runtime.set_use_conditioned_hands(not runtime.use_conditioned_hands)
 	_refresh()
 
+func _micro_platform_active() -> bool:
+	if XRMicrogestureLocomotionDriver.session_platform_override >= 0:
+		return XRMicrogestureLocomotionDriver.session_platform_override == 1
+	# No override yet: the default is the driver export's default, PORTABLE.
+	return false
+
+func _on_toggle_micro_source() -> void:
+	XRMicrogestureLocomotionDriver.session_platform_override = 0 if _micro_platform_active() else 1
+	_refresh()
+
 func _all_gesture_runtimes(root: Node) -> Array:
 	var found: Array = []
 	if root is XRGestureRuntime:
@@ -90,6 +109,11 @@ func _refresh() -> void:
 	var on: bool = runtimes[0].use_conditioned_hands
 	_gesture_label.text = "MICROGESTURE INPUT: %s\n(poke to A/B)" % ("CONDITIONED" if on else "RAW")
 	_gesture_label.modulate = Color(0.3, 1.0, 0.5) if on else Color(1.0, 0.55, 0.3)
+	if _micro_source_label != null:
+		var platform := _micro_platform_active()
+		_micro_source_label.text = "MICRO DETECTOR: %s\n(poke to A/B)" % ("PLATFORM (Quest ML)" if platform else "PORTABLE (ours)")
+		_micro_source_label.modulate = Color(0.4, 0.7, 1.0) if platform else Color(0.3, 1.0, 0.5)
+		print("feel_check: micro_detector=%s" % ("PLATFORM" if platform else "PORTABLE"))
 	if _mode_label != null:
 		_mode_label.modulate = Color(0.3, 1.0, 0.5) if _arbiter.enabled else Color(1.0, 0.55, 0.3)
 	print("feel_check: microgesture_input=%s arbiter=%s" % [
