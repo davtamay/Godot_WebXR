@@ -153,6 +153,7 @@ func _connect_rejection_feeds() -> void:
 	# sits relative to THIS hand's press range.
 	if not drivers.is_empty():
 		_recognizer_ref = drivers[0].get_node_or_null("ThumbRecognizer")
+		_runtime_ref = drivers[0].get_node_or_null("GestureRuntime")
 	if drivers.is_empty():
 		_reject_label.text = "MICROGESTURES: no driver in scene"
 		_reject_label.modulate = Color(0.6, 0.6, 0.6)
@@ -167,8 +168,10 @@ func _collect_drivers(root: Node, found: Array) -> void:
 ## Last logged [side_distance, contact_position] per hand, for change-gating.
 var _probe_last := {}
 var _recognizer_ref: Node
+var _runtime_ref: Node
 var _adaptive_last := {}
 var _adaptive_poll := 0.0
+var _posture_last := {}
 
 func _poll_adaptive_state(delta: float) -> void:
 	_adaptive_poll += delta
@@ -185,6 +188,21 @@ func _poll_adaptive_state(delta: float) -> void:
 			continue
 		_adaptive_last[hand] = [contact, release, span]
 		print("feel_check: adaptive hand=%d contact=%.2f release=%.2f span=%.2f" % [hand, contact, release, span])
+	# Posture gate score, the signal the teleport-aim watchdog lives on. The
+	# measurement that places the exit bar: what does a TILTED fist score vs
+	# an open hand vs a proper microgesture fist? Change-gated at 0.05.
+	if _runtime_ref == null or not is_instance_valid(_runtime_ref):
+		return
+	for hand in [0, 1]:
+		var features = _runtime_ref.get_features(hand)
+		if features == null or not features.valid:
+			continue
+		var score: float = _recognizer_ref.gate_score(features)
+		if absf(score - float(_posture_last.get(hand, -1.0))) < 0.05:
+			continue
+		_posture_last[hand] = score
+		print("feel_check: posture hand=%d score=%.2f index_curl=%.2f" % [
+				hand, score, features.finger_curls[XRHandFeatures.Finger.INDEX]])
 
 func _on_contact_probe(hand: int, features) -> void:
 	if features == null or not features.valid:
