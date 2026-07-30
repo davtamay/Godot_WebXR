@@ -18,6 +18,18 @@ var _mode_label: Label3D
 var _micro_source_label: Label3D
 var _arbiter: XRInteractionArbiter
 
+## Rejection telemetry (tier 2 of the microgesture hardening): every gesture
+## attempt the recognizer saw and DISCARDED, counted by reason. This is the
+## measurement that decides whether the dead band gets narrowed -- "not 100%
+## reliable" becomes "9 SWIPE_TOO_SHORT in a 5-minute session", which is a
+## tunable number instead of a feeling. Visual only: bare hands have no
+## haptic actuator, so the buzz the design sketch imagined is physically
+## impossible here -- the label flashes instead.
+var _reject_label: Label3D
+var _reject_counts := {}
+var _reject_last := "none yet"
+var _reject_flash := 0.0
+
 func _ready() -> void:
 	_gesture_label = _make_label(Vector3(-0.3, 1.3, -0.55))
 	_make_button(Vector3(-0.3, 1.0, -0.55), _on_toggle_gesture_source)
@@ -36,9 +48,16 @@ func _ready() -> void:
 	add_child(_arbiter)
 	_mode_label = _make_label(Vector3(0.3, 1.3, -0.55))
 	_make_button(Vector3(0.3, 1.0, -0.55), _on_toggle_arbiter)
+
+	_reject_label = _make_label(Vector3(0.9, 1.3, -0.55))
+	_reject_label.text = "REJECTIONS\n(fumble a swipe to test)"
+	_reject_label.modulate = Color(1.0, 0.8, 0.4)
+	# Deferred: the locomotion driver lives elsewhere in the scene tree and
+	# may _ready after this node does.
+	_connect_rejection_feeds.call_deferred()
 	_refresh()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# The live mode is the point of the label: the state machine should be
 	# legible in the headset rather than inferred from what the ray is doing.
 	if _mode_label != null:
@@ -46,6 +65,12 @@ func _process(_delta: float) -> void:
 			"ON" if _arbiter.enabled else "OFF",
 			_mode_name(_arbiter.mode_for(0)),
 			_mode_name(_arbiter.mode_for(1))]
+	# A rejection flashes the counter red for a beat -- the visual stand-in
+	# for the haptic feedback bare hands cannot receive.
+	if _reject_flash > 0.0:
+		_reject_flash = maxf(_reject_flash - delta, 0.0)
+		if _reject_flash <= 0.0 and _reject_label != null:
+			_reject_label.modulate = Color(1.0, 0.8, 0.4)
 
 func _mode_name(mode: int) -> String:
 	match mode:
@@ -90,6 +115,38 @@ func _micro_platform_active() -> bool:
 func _on_toggle_micro_source() -> void:
 	XRMicrogestureLocomotionDriver.session_platform_override = 0 if _micro_platform_active() else 1
 	_refresh()
+
+func _connect_rejection_feeds() -> void:
+	var drivers: Array = []
+	_collect_drivers(get_tree().root, drivers)
+	for driver in drivers:
+		if driver.has_signal("source_gesture_rejected"):
+			driver.source_gesture_rejected.connect(_on_gesture_rejected)
+	if drivers.is_empty():
+		_reject_label.text = "REJECTIONS: no driver in scene"
+		_reject_label.modulate = Color(0.6, 0.6, 0.6)
+	print("feel_check: rejection feeds connected: %d driver(s)" % drivers.size())
+
+func _collect_drivers(root: Node, found: Array) -> void:
+	if root is XRMicrogestureLocomotionDriver:
+		found.append(root)
+	for child in root.get_children():
+		_collect_drivers(child, found)
+
+func _on_gesture_rejected(hand: int, reason: int) -> void:
+	var keys := XRMicrogestureSource.RejectReason.keys()
+	var reason_name: String = keys[reason] if reason >= 0 and reason < keys.size() else "UNKNOWN"
+	_reject_counts[reason_name] = int(_reject_counts.get(reason_name, 0)) + 1
+	_reject_last = "%s %s" % ["L" if hand == 0 else "R", reason_name]
+	_reject_flash = 0.35
+	_reject_label.modulate = Color(1.0, 0.35, 0.3)
+	var lines := ["REJECTIONS (last: %s)" % _reject_last]
+	for key in _reject_counts:
+		lines.append("%s: %d" % [key, _reject_counts[key]])
+	_reject_label.text = "\n".join(lines)
+	# Also to stdout, change-per-event by nature, so a session log carries the
+	# same counts the label shows -- the tuning evidence survives the session.
+	print("feel_check: rejected hand=%d reason=%s counts=%s" % [hand, reason_name, _reject_counts])
 
 func _all_gesture_runtimes(root: Node) -> Array:
 	var found: Array = []
