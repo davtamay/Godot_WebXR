@@ -18,39 +18,52 @@ var _mode_label: Label3D
 var _micro_source_label: Label3D
 var _arbiter: XRInteractionArbiter
 
-## Rejection telemetry (tier 2 of the microgesture hardening): every gesture
-## attempt the recognizer saw and DISCARDED, counted by reason. This is the
-## measurement that decides whether the dead band gets narrowed -- "not 100%
-## reliable" becomes "9 SWIPE_TOO_SHORT in a 5-minute session", which is a
-## tunable number instead of a feeling. Visual only: bare hands have no
-## haptic actuator, so the buzz the design sketch imagined is physically
-## impossible here -- the label flashes instead.
+## Microgesture telemetry (tier 2 of the hardening): successes AND discarded
+## attempts, counted per direction, because reasons alone could not answer
+## the first real on-device question ("swiping right seems more reliable than
+## swiping left"). This is the measurement that decides whether the dead band
+## gets narrowed -- a per-direction miss RATE instead of a feeling. Visual
+## only: bare hands have no haptic actuator, so the buzz the design sketch
+## imagined is physically impossible here -- the label flashes instead.
+##
+## This panel is the session's FOCUS, so it sits front and center at full
+## size while the A/B dials shrink to captions above their buttons -- their
+## big multi-line labels were covering exactly the numbers being read
+## (David: "other debug text covers the one we are trying to focus on").
 var _reject_label: Label3D
 var _reject_counts := {}
+## attempted-direction name -> count, rejections only.
+var _reject_by_direction := {}
+## gesture name -> count, successes, both hands merged (the mux already
+## picked the authoritative source).
+var _ok_counts := {}
 var _reject_last := "none yet"
 var _reject_flash := 0.0
 
 func _ready() -> void:
-	_gesture_label = _make_label(Vector3(-0.3, 1.3, -0.55))
-	_make_button(Vector3(-0.3, 1.0, -0.55), _on_toggle_gesture_source)
+	# The A/B dials: compact captions directly above their buttons, small
+	# enough that nothing overlaps the telemetry panel.
+	_gesture_label = _make_label(Vector3(-0.55, 1.12, -0.55), 30)
+	_make_button(Vector3(-0.55, 1.0, -0.55), _on_toggle_gesture_source)
 
 	# Which microgesture DETECTOR drives locomotion, session-wide: PORTABLE
 	# is the joint recognizer -- the code path WebXR, Galaxy XR and Link
 	# actually run -- and is the default, because testing on a Quest with the
 	# platform extension active measures Meta's recognizer, not ours.
 	# PLATFORM is the runtime detector (Quest-only), the parity reference.
-	_micro_source_label = _make_label(Vector3(-0.9, 1.3, -0.55))
+	_micro_source_label = _make_label(Vector3(-0.9, 1.12, -0.55), 30)
 	_make_button(Vector3(-0.9, 1.0, -0.55), _on_toggle_micro_source)
 
 	# The arbiter is opt-in, so the earn-in scene creates its own rather than
 	# relying on the rig prefab carrying one.
 	_arbiter = XRInteractionArbiter.new()
 	add_child(_arbiter)
-	_mode_label = _make_label(Vector3(0.3, 1.3, -0.55))
-	_make_button(Vector3(0.3, 1.0, -0.55), _on_toggle_arbiter)
+	_mode_label = _make_label(Vector3(0.9, 1.12, -0.55), 30)
+	_make_button(Vector3(0.9, 1.0, -0.55), _on_toggle_arbiter)
 
-	_reject_label = _make_label(Vector3(0.9, 1.3, -0.55))
-	_reject_label.text = "REJECTIONS\n(fumble a swipe to test)"
+	# The telemetry panel: front and center, the thing this bench measures.
+	_reject_label = _make_label(Vector3(0.0, 1.45, -0.55))
+	_reject_label.text = "MICROGESTURES\n(fumble a swipe to test the counter)"
 	_reject_label.modulate = Color(1.0, 0.8, 0.4)
 	# Deferred: the locomotion driver lives elsewhere in the scene tree and
 	# may _ready after this node does.
@@ -61,7 +74,7 @@ func _process(delta: float) -> void:
 	# The live mode is the point of the label: the state machine should be
 	# legible in the headset rather than inferred from what the ray is doing.
 	if _mode_label != null:
-		_mode_label.text = "ARBITER: %s\nL %s   R %s\n(poke to A/B)" % [
+		_mode_label.text = "ARBITER %s  L:%s R:%s" % [
 			"ON" if _arbiter.enabled else "OFF",
 			_mode_name(_arbiter.mode_for(0)),
 			_mode_name(_arbiter.mode_for(1))]
@@ -83,9 +96,9 @@ func _on_toggle_arbiter() -> void:
 	_arbiter.enabled = not _arbiter.enabled
 	_refresh()
 
-func _make_label(where: Vector3) -> Label3D:
+func _make_label(where: Vector3, font_size := 56) -> Label3D:
 	var label := Label3D.new()
-	label.font_size = 56
+	label.font_size = font_size
 	label.outline_size = 16
 	label.pixel_size = 0.002
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -122,10 +135,12 @@ func _connect_rejection_feeds() -> void:
 	for driver in drivers:
 		if driver.has_signal("source_gesture_rejected"):
 			driver.source_gesture_rejected.connect(_on_gesture_rejected)
+		if driver.has_signal("source_gesture_performed"):
+			driver.source_gesture_performed.connect(_on_gesture_performed)
 	if drivers.is_empty():
-		_reject_label.text = "REJECTIONS: no driver in scene"
+		_reject_label.text = "MICROGESTURES: no driver in scene"
 		_reject_label.modulate = Color(0.6, 0.6, 0.6)
-	print("feel_check: rejection feeds connected: %d driver(s)" % drivers.size())
+	print("feel_check: telemetry feeds connected: %d driver(s)" % drivers.size())
 
 func _collect_drivers(root: Node, found: Array) -> void:
 	if root is XRMicrogestureLocomotionDriver:
@@ -133,20 +148,46 @@ func _collect_drivers(root: Node, found: Array) -> void:
 	for child in root.get_children():
 		_collect_drivers(child, found)
 
-func _on_gesture_rejected(hand: int, reason: int) -> void:
+func _gesture_key(gesture: int) -> String:
+	var keys := XRMicrogestureSource.Gesture.keys()
+	return keys[gesture] if gesture >= 0 and gesture < keys.size() else "?"
+
+func _on_gesture_performed(gesture: int, hand: int) -> void:
+	var key := _gesture_key(gesture)
+	_ok_counts[key] = int(_ok_counts.get(key, 0)) + 1
+	_update_telemetry_label()
+	print("feel_check: performed hand=%d gesture=%s ok=%s" % [hand, key, _ok_counts])
+
+func _on_gesture_rejected(hand: int, reason: int, attempted: int) -> void:
 	var keys := XRMicrogestureSource.RejectReason.keys()
 	var reason_name: String = keys[reason] if reason >= 0 and reason < keys.size() else "UNKNOWN"
 	_reject_counts[reason_name] = int(_reject_counts.get(reason_name, 0)) + 1
-	_reject_last = "%s %s" % ["L" if hand == 0 else "R", reason_name]
+	var direction := _gesture_key(attempted)
+	if attempted >= 0:
+		_reject_by_direction[direction] = int(_reject_by_direction.get(direction, 0)) + 1
+	_reject_last = "%s %s%s" % ["L" if hand == 0 else "R", reason_name,
+			"" if attempted < 0 else " (" + direction + ")"]
 	_reject_flash = 0.35
 	_reject_label.modulate = Color(1.0, 0.35, 0.3)
-	var lines := ["REJECTIONS (last: %s)" % _reject_last]
-	for key in _reject_counts:
-		lines.append("%s: %d" % [key, _reject_counts[key]])
-	_reject_label.text = "\n".join(lines)
+	_update_telemetry_label()
 	# Also to stdout, change-per-event by nature, so a session log carries the
 	# same counts the label shows -- the tuning evidence survives the session.
-	print("feel_check: rejected hand=%d reason=%s counts=%s" % [hand, reason_name, _reject_counts])
+	print("feel_check: rejected hand=%d reason=%s attempted=%s counts=%s by_direction=%s" % [
+			hand, reason_name, direction, _reject_counts, _reject_by_direction])
+
+func _update_telemetry_label() -> void:
+	# The per-direction line is the headline: OK vs rejected, LEFT vs RIGHT,
+	# is the reliability asymmetry read directly.
+	var lines := ["OK   L:%d  R:%d  TAP:%d" % [
+			int(_ok_counts.get("LEFT", 0)), int(_ok_counts.get("RIGHT", 0)),
+			int(_ok_counts.get("TAP", 0))]]
+	lines.append("MISS L:%d  R:%d" % [
+			int(_reject_by_direction.get("LEFT", 0)),
+			int(_reject_by_direction.get("RIGHT", 0))])
+	for key in _reject_counts:
+		lines.append("%s: %d" % [key, _reject_counts[key]])
+	lines.append("last: %s" % _reject_last)
+	_reject_label.text = "\n".join(lines)
 
 func _all_gesture_runtimes(root: Node) -> Array:
 	var found: Array = []
@@ -164,11 +205,11 @@ func _refresh() -> void:
 		print("feel_check: no XRGestureRuntime in scene")
 		return
 	var on: bool = runtimes[0].use_conditioned_hands
-	_gesture_label.text = "MICROGESTURE INPUT: %s\n(poke to A/B)" % ("CONDITIONED" if on else "RAW")
+	_gesture_label.text = "INPUT: %s" % ("CONDITIONED" if on else "RAW")
 	_gesture_label.modulate = Color(0.3, 1.0, 0.5) if on else Color(1.0, 0.55, 0.3)
 	if _micro_source_label != null:
 		var platform := _micro_platform_active()
-		_micro_source_label.text = "MICRO DETECTOR: %s\n(poke to A/B)" % ("PLATFORM (Quest ML)" if platform else "PORTABLE (ours)")
+		_micro_source_label.text = "DETECTOR: %s" % ("PLATFORM" if platform else "PORTABLE")
 		_micro_source_label.modulate = Color(0.4, 0.7, 1.0) if platform else Color(0.3, 1.0, 0.5)
 		print("feel_check: micro_detector=%s" % ("PLATFORM" if platform else "PORTABLE"))
 	if _mode_label != null:
