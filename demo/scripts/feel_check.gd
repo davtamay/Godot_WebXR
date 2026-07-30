@@ -137,6 +137,13 @@ func _connect_rejection_feeds() -> void:
 			driver.source_gesture_rejected.connect(_on_gesture_rejected)
 		if driver.has_signal("source_gesture_performed"):
 			driver.source_gesture_performed.connect(_on_gesture_performed)
+	# Raw contact probe: where the thumb actually RESTS and TRAVELS along the
+	# index (0 = base, 1 = tip), logged only while in/near contact and only on
+	# meaningful movement. This is the ground truth for the arming-zone
+	# question -- OUT_OF_START_ZONE counts say attempts died at the gate; this
+	# says WHERE the thumb was when they did.
+	for runtime in _all_gesture_runtimes(get_tree().root):
+		runtime.hand_features_updated.connect(_on_contact_probe)
 	if drivers.is_empty():
 		_reject_label.text = "MICROGESTURES: no driver in scene"
 		_reject_label.modulate = Color(0.6, 0.6, 0.6)
@@ -147,6 +154,26 @@ func _collect_drivers(root: Node, found: Array) -> void:
 		found.append(root)
 	for child in root.get_children():
 		_collect_drivers(child, found)
+
+## Last logged [side_distance, contact_position] per hand, for change-gating.
+var _probe_last := {}
+
+func _on_contact_probe(hand: int, features) -> void:
+	if features == null or not features.valid:
+		return
+	var side: float = features.thumb_index_side_distance
+	var position: float = features.thumb_index_contact_position
+	# Only in/near contact (the arming question lives there), and only on
+	# real movement -- an unconditional per-frame print flooded a session log
+	# with 91k lines once before in this project.
+	if side > 0.6:
+		_probe_last.erase(hand)
+		return
+	var last: Array = _probe_last.get(hand, [INF, INF])
+	if absf(side - float(last[0])) < 0.05 and absf(position - float(last[1])) < 0.05:
+		return
+	_probe_last[hand] = [side, position]
+	print("feel_check: contact hand=%d side=%.2f pos=%.2f" % [hand, side, position])
 
 func _gesture_key(gesture: int) -> String:
 	var keys := XRMicrogestureSource.Gesture.keys()
