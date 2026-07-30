@@ -9,9 +9,27 @@ Always use the retry launcher - never hand-roll a Godot invocation for
 Link (earned-in rule; the headset takes a variable time to present and a
 plain launch dies with FORM_FACTOR_UNAVAILABLE).
 
+**BEFORE launching, check nothing is already attached** (earned-in
+2026-07-30: relaunching over a still-live session put two Godot
+instances in a fight over one OpenXR session -- the second hung, Link
+wedged, and the user could not reopen it until every instance was
+killed):
+
+```powershell
+Get-Process | Where-Object { $_.ProcessName -like "*godot*" } | Select-Object Id, ProcessName, Responding
+```
+
+If anything is listed, the previous session is still live or stuck. Ask
+the user to quit the scene first (or confirm it is stuck), then
+`Stop-Process -Force` the leftovers, and only then launch:
+
 ```powershell
 & "C:\Users\davta\Desktop\xr_retry_launch.ps1"
 ```
+
+If Link itself is wedged after a stuck session, killing the Godot
+processes is the fix - the user then restarts Link from the headset.
+Restarting OVRService has never yet been required.
 
 Run it in **background** - it retries up to 40 times (~16 minutes) and
 then stays attached to the running session until the user quits the scene.
