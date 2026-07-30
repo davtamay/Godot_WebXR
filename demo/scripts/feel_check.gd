@@ -78,6 +78,7 @@ func _process(delta: float) -> void:
 			"ON" if _arbiter.enabled else "OFF",
 			_mode_name(_arbiter.mode_for(0)),
 			_mode_name(_arbiter.mode_for(1))]
+	_poll_adaptive_state(delta)
 	# A rejection flashes the counter red for a beat -- the visual stand-in
 	# for the haptic feedback bare hands cannot receive.
 	if _reject_flash > 0.0:
@@ -144,6 +145,14 @@ func _connect_rejection_feeds() -> void:
 	# says WHERE the thumb was when they did.
 	for runtime in _all_gesture_runtimes(get_tree().root):
 		runtime.hand_features_updated.connect(_on_contact_probe)
+	# The recognizer's OWN view of the contact gate: the adaptive envelope's
+	# effective thresholds and observed span, per hand. Polled and
+	# change-gated in _process -- span -1 means the envelope does not yet
+	# trust its samples and the authored thresholds are in force, which is
+	# itself a finding: the gate is then a fixed value sitting wherever it
+	# sits relative to THIS hand's press range.
+	if not drivers.is_empty():
+		_recognizer_ref = drivers[0].get_node_or_null("ThumbRecognizer")
 	if drivers.is_empty():
 		_reject_label.text = "MICROGESTURES: no driver in scene"
 		_reject_label.modulate = Color(0.6, 0.6, 0.6)
@@ -157,6 +166,25 @@ func _collect_drivers(root: Node, found: Array) -> void:
 
 ## Last logged [side_distance, contact_position] per hand, for change-gating.
 var _probe_last := {}
+var _recognizer_ref: Node
+var _adaptive_last := {}
+var _adaptive_poll := 0.0
+
+func _poll_adaptive_state(delta: float) -> void:
+	_adaptive_poll += delta
+	if _adaptive_poll < 1.0 or _recognizer_ref == null or not is_instance_valid(_recognizer_ref):
+		return
+	_adaptive_poll = 0.0
+	for hand in [0, 1]:
+		var contact: float = _recognizer_ref.effective_contact_threshold(hand)
+		var release: float = _recognizer_ref.effective_release_threshold(hand)
+		var span: float = _recognizer_ref.contact_span(hand)
+		var last: Array = _adaptive_last.get(hand, [INF, INF, INF])
+		if absf(contact - float(last[0])) < 0.01 and absf(release - float(last[1])) < 0.01 \
+				and absf(span - float(last[2])) < 0.01:
+			continue
+		_adaptive_last[hand] = [contact, release, span]
+		print("feel_check: adaptive hand=%d contact=%.2f release=%.2f span=%.2f" % [hand, contact, release, span])
 
 func _on_contact_probe(hand: int, features) -> void:
 	if features == null or not features.valid:
@@ -166,7 +194,10 @@ func _on_contact_probe(hand: int, features) -> void:
 	# Only in/near contact (the arming question lives there), and only on
 	# real movement -- an unconditional per-frame print flooded a session log
 	# with 91k lines once before in this project.
-	if side > 0.6:
+	# 1.0, raised from 0.6: the tighter cap truncated the very distribution
+	# being measured -- the near-contact analysis concluded "span too narrow"
+	# from data the probe itself had clipped.
+	if side > 1.0:
 		_probe_last.erase(hand)
 		return
 	var last: Array = _probe_last.get(hand, [INF, INF])
