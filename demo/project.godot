@@ -36,6 +36,8 @@ enabled=PackedStringArray("res://addons/godot_universal_xr_apk/plugin.cfg", "res
 
 [rendering]
 
+driver/threads/thread_model=2
+driver/threads/thread_model.web=1
 textures/canvas_textures/default_texture_filter=0
 renderer/rendering_method="mobile"
 renderer/rendering_method.mobile="gl_compatibility"
