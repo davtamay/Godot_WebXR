@@ -42,9 +42,17 @@ func _add_flat_button() -> void:
 ## fingertip and selects with a ray like anything else in the suite.
 func _add_world_button() -> void:
 	_panel = Node3D.new()
+	# Named: anonymous runtime nodes read as @Node3D@N in scene dumps, and
+	# for months this widget was the sweeps' one unexplained miss per scene.
+	_panel.name = "MenuPanel"
 	add_child(_panel)
 
 	var button := XRPokeButton.new()
+	button.name = "MenuButton"
+	# A scene-EXIT control: a generated drive pressing it would tear down
+	# the scene mid-sweep, so it answers drive_hint() with "leave me alone".
+	# Older toolkit versions lack the export; set() no-ops there.
+	button.set("drive_hint_excluded", true)
 	button.cap_color = Color(0.95, 0.5, 0.25, 1.0)
 	button.pressed_color = Color(0.3, 1.0, 0.55, 1.0)
 	_panel.add_child(button)
