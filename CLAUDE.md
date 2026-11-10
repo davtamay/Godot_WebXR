@@ -1,3 +1,7 @@
+## Benchmark/reliability follow-up
+
+Read docs/CODEX_BENCHMARK_RELIABILITY_HANDOFF.md and docs/BENCHMARK_RELIABILITY.md. Tooling is isolated on codex/benchmark-reliability; launcher RAF results do not establish renderer performance or headset reliability.
+
 ## Published integration baseline
 
 Read docs/PUBLISHED_INTEGRATION_HANDOFF.md first. The demo now pins the published XR Suite revision and includes the tested export/runtime diagnostics. Preserve the separate Monday refs and local uncommitted work.
