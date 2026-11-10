@@ -179,6 +179,7 @@ window.addEventListener('godot-xr-diagnostic', function (event) {
     const session = XRReport.sessions[XRReport.sessions.length - 1];
     if (session && detail.type === 'started') Object.assign(session, detail);
     if (session && detail.type === 'frame') session.frame = detail;
+    if (session && detail.type === 'depth') session.depth = detail;
     if (session && detail.type === 'ended') session.ended_at = new Date().toISOString();
     if (detail.type === 'failure') {
         if (session) session.failure = detail.message;

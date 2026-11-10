@@ -41,6 +41,9 @@ assert.equal(test.context.xrReportAssessment(), 'pending-immersive-frame');
 test.event({ type: 'frame', binding: 'webgpu', views: 2 });
 assert.equal(test.context.xrReportAssessment(), 'immersive-path-observed');
 assert.equal(test.context.xrReportSnapshot().provenance_complete, true);
+test.event({ type: 'depth', status: 'ok', view_count: 2, valid_mask: 3, units: 'meters' });
+assert.equal(test.context.xrReportSnapshot().sessions.at(-1).depth.valid_mask, 3);
+
 test.event({ type: 'ended' });
 assert.equal(test.context.xrReportAssessment(), 'immersive-path-observed');
 test.event({ type: 'requested', mode: 'immersive-vr' });

@@ -133,7 +133,7 @@ func _add_renderer_chip(parent: Node) -> void:
 	var qualifier := " (experimental)" if active == "webgpu" else " (recommended for XR)"
 	var depth_note := ""
 	if active == "webgpu" and not WebXRRenderer.webgpu_depth_available():
-		depth_note = "\nDepth sensing unavailable here; use WebGL for full XR features."
+		depth_note = "\nGPU depth API unavailable here; session CPU-depth fallback may still work."
 	head.text = "Renderer: " + active.to_upper() + qualifier + depth_note
 	head.tooltip_text = WebXRRenderer.coverage_note(active)
 	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
