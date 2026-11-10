@@ -1,0 +1,14 @@
+config_version=5
+[application]
+config/name="Matched 3D benchmark"
+run/main_scene="res://main.tscn"
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=720
+[rendering]
+renderer/rendering_method="mobile"
+renderer/rendering_method.web="mobile"
+rendering_device/driver.web="webgpu"
+environment/defaults/default_clear_color=Color(0,0,0,1)
+[editor_plugins]
+enabled=PackedStringArray("res://addons/godot_webgpu/plugin.cfg")

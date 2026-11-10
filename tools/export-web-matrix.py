@@ -11,6 +11,8 @@ from pathlib import Path
 import re
 import subprocess
 import uuid
+import json
+import hashlib
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--editor', type=Path, required=True)
@@ -49,6 +51,22 @@ output.mkdir(parents=True, exist_ok=True)
 env = os.environ.copy()
 # Preserve an explicitly supplied short drive alias on Windows.
 env['GODOT_TINT_PATH'] = str((args.tint or editor.parent / ('tint.exe' if os.name == 'nt' else 'tint')).absolute())
+# Attest only the controlled preset edit, never arbitrary dirty source. The
+# addon rechecks HEAD, the original Git blob, current bytes and dirty path list.
+def git(*arguments):
+    return subprocess.check_output(['git', '-C', str(project), *arguments], text=True).strip()
+
+env.pop('GODOT_EXPORT_PRESET_OVERRIDE', None)
+if not git('status', '--porcelain', '--untracked-files=normal'):
+    repository = Path(git('rev-parse', '--show-toplevel')).resolve()
+    relative = presets_path.relative_to(repository).as_posix()
+    env['GODOT_EXPORT_PRESET_OVERRIDE'] = json.dumps({
+        'root': repository.as_posix(), 'path': relative,
+        'revision': git('rev-parse', 'HEAD'),
+        'base_blob': git('rev-parse', 'HEAD:' + relative),
+        'effective_sha256': hashlib.sha256(text.encode('utf-8')).hexdigest(),
+        'reason': 'matrix custom-template paths',
+    })
 try:
     presets_path.write_bytes(text.encode('utf-8'))
     # Clear the previous engine's bake ONCE. Threading changes the template,
