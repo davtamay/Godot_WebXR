@@ -13,7 +13,7 @@ const require = createRequire(path.join(process.env.GODOT_WEBGPU_TESTBED || proc
 const { chromium } = require('playwright');
 const out = path.resolve(o.out); fs.mkdirSync(out, { recursive: true });
 const sha = p => createHash('sha256').update(fs.readFileSync(p)).digest('hex');
-const metadata = { schema: 1, configuration: o, workloadSha256: sha(path.join(root,'godot/workload.json')), dependencyLockSha256: sha(path.join(root,'package-lock.json')), started: new Date().toISOString(), cases: [], gpuTimingNote: 'Asynchronous latest completed engine profiler values; adjacent frame samples can repeat. GPU scopes and CPU scopes differ and are recorded per engine.' };
+const metadata = { schema: 1, configuration: o, harnessSha256: sha(fileURLToPath(import.meta.url)), adapterSha256: sha(path.join(root,'adapters.mjs')), workloadSha256: sha(path.join(root,'godot/workload.json')), dependencyLockSha256: sha(path.join(root,'package-lock.json')), started: new Date().toISOString(), cases: [], gpuTimingNote: 'Asynchronous latest completed engine profiler values; adjacent frame samples can repeat. GPU scopes and CPU scopes differ and are recorded per engine. Browser timestamps may be quantized: measured zero is below resolution, not free work.' };
 const server = http.createServer((req,res) => {
     const name = decodeURIComponent(new URL(req.url,'http://local').pathname);
     if (name === '/favicon.ico') { res.writeHead(204).end(); return; }
@@ -38,6 +38,16 @@ try {
                 browser=await chromium.launch({channel:o.channel}); item.browserVersion=browser.version();
                 const cdp=await browser.newBrowserCDPSession(); const system=await cdp.send('SystemInfo.getInfo'); item.gpu=system.gpu.devices;
                 const page=await browser.newPage({viewport:{width:1280,height:720},deviceScaleFactor:1});
+                await page.addInitScript(() => {
+                    window.benchDeviceFeatures = [];
+                    if (typeof GPUAdapter !== 'undefined') {
+                        const original = GPUAdapter.prototype.requestDevice;
+                        GPUAdapter.prototype.requestDevice = async function(...args) {
+                            const device = await original.apply(this,args);
+                            window.benchDeviceFeatures.push([...device.features]); return device;
+                        };
+                    }
+                });
                 page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
                 const url=engine.startsWith('godot')?`${base}/build/${engine==='godot-single'?'Web':'WebThreads'}/index.html?count=${count}`:`${base}/index.html?engine=${engine}&count=${count}`;
                 await page.goto(url,{waitUntil:'domcontentloaded'});
@@ -49,6 +59,9 @@ try {
                 await page.waitForTimeout(Number(o.seconds)*1000);
                 const captured=await page.evaluate(()=>{bench.collecting=false;return {frames:bench.frames,metadata:bench.metadata};});
                 Object.assign(item,captured);
+                item.deviceFeatures=await page.evaluate(()=>window.benchDeviceFeatures);
+                item.timestampQueriesEnabled=item.deviceFeatures.some(f=>f.includes('timestamp-query'));
+                if (!item.timestampQueriesEnabled) for (const sample of item.frames) sample.gpuMs=null;
                 item.metrics={frameMs:stats(item.frames.map(f=>f.frameMs)),cpuMs:stats(item.frames.map(f=>f.cpuMs)),gpuMs:stats(item.frames.map(f=>f.gpuMs)),draws:stats(item.frames.map(f=>f.draws))};
                 await page.screenshot({path:path.join(out,id+'.png')});
                 if(!item.frames.length||errors.length)throw new Error('Missing frames or browser errors');
