@@ -1,3 +1,7 @@
+## Published integration baseline
+
+Read docs/PUBLISHED_INTEGRATION_HANDOFF.md first. The demo now pins the published XR Suite revision and includes the tested export/runtime diagnostics. Preserve the separate Monday refs and local uncommitted work.
+
 # Claude/Fable Instructions: Godot WebXR / Web Export
 
 ## Mission

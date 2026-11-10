@@ -8,7 +8,7 @@
 # Bump $SuiteRef to consume a newer suite release. Use "master" to track
 # latest during active development.
 
-$SuiteRef = "master"
+$SuiteRef = "2595f379576804912a224b79efaa1f4a8fce26d5"
 $SuiteUrl = "https://github.com/davtamay/godot-xr-suite.git"
 
 $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
