@@ -1,3 +1,7 @@
+## Matched benchmarks and provenance — completed
+
+Read docs/CODEX_MATCHED_BENCHMARK_HANDOFF.md first. Preserve the isolated branches, measured artifacts and Monday snapshots; no engine patch was needed.
+
 ## Benchmark/reliability follow-up
 
 Read docs/CODEX_BENCHMARK_RELIABILITY_HANDOFF.md and docs/BENCHMARK_RELIABILITY.md. Tooling is isolated on codex/benchmark-reliability; launcher RAF results do not establish renderer performance or headset reliability.
