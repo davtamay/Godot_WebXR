@@ -5,7 +5,7 @@ window.bench = { ready: false, collecting: false, frames: [], metadata: { engine
 let frame = 0, last = performance.now();
 function record(cpuMs, gpuMs, draws, primitives) {
     const now = performance.now();
-    const sample = { frame: ++frame, frameMs: now - last, cpuMs, gpuMs: Number.isFinite(gpuMs) && gpuMs > 0 ? gpuMs : null, draws, primitives };
+    const sample = { frame: ++frame, frameMs: now - last, cpuMs, gpuMs: Number.isFinite(gpuMs) && gpuMs >= 0 ? gpuMs : null, draws, primitives };
     last = now; bench.ready = true;
     if (bench.collecting) bench.frames.push(sample);
 }
@@ -31,8 +31,8 @@ try {
         const instrumentation = new B.EngineInstrumentation(engine); instrumentation.captureGPUFrameTime = true;
         bench.metadata = { ...bench.metadata, version: B.Engine.Version, gpu_scope: 'Babylon GPU frame timestamp interval; latest completed readback', cpu_scope: 'wall time inside scene.render; excludes engine endFrame' };
         engine.runRenderLoop(() => {
-            const start = performance.now(); scene.render();
-            record(performance.now() - start, instrumentation.gpuFrameTimeCounter?.current / 1e6, engine._drawCalls.current, scene.getActiveIndices() / 3);
+            const drawsBefore = engine._drawCalls.current; const start = performance.now(); scene.render();
+            record(performance.now() - start, instrumentation.gpuFrameTimeCounter?.count ? instrumentation.gpuFrameTimeCounter.current / 1e6 : null, engine._drawCalls.current - drawsBefore, scene.getActiveIndices() / 3);
         });
     } else if (engineName === 'playcanvas') {
         const P = await import('./node_modules/playcanvas/build/playcanvas.mjs');

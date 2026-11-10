@@ -50,5 +50,5 @@ func _frame() -> void:
  var now := Time.get_ticks_usec()
  frame += 1
  var gpu := RenderingServer.viewport_get_measured_render_time_gpu(viewport_rid)
- js.benchFrame(JSON.stringify({"frame":frame,"frameMs":float(now-last_usec)/1000.0 if last_usec else 0.0,"cpuMs":RenderingServer.viewport_get_measured_render_time_cpu(viewport_rid)+RenderingServer.get_frame_setup_time_cpu(),"gpuMs":gpu if gpu>0 else null,"draws":int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),"primitives":int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))}))
+ js.benchFrame(JSON.stringify({"frame":frame,"frameMs":float(now-last_usec)/1000.0 if last_usec else 0.0,"cpuMs":RenderingServer.viewport_get_measured_render_time_cpu(viewport_rid)+RenderingServer.get_frame_setup_time_cpu(),"gpuMs":gpu if gpu>=0 else null,"draws":int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),"primitives":int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))}))
  last_usec = now
