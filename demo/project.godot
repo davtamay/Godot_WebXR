@@ -21,6 +21,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+XRBuildDiagnostics="*res://addons/godot_webgpu/runtime_diagnostics.gd"
+
 XRSceneRouter="*res://scripts/xr_scene_router.gd"
 
 [display]

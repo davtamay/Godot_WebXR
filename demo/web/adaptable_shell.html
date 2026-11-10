@@ -111,6 +111,123 @@ body {
 		<script>
 const GODOT_CONFIG = $GODOT_CONFIG;
 const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+// P0 report schema 1. Capability checks never count as rendered-frame evidence.
+const XRReport = {
+    schema: 1,
+    started_at: new Date().toISOString(),
+    page: location.origin + location.pathname,
+    user_agent: navigator.userAgent,
+    secure_context: window.isSecureContext,
+    cross_origin_isolated: window.crossOriginIsolated,
+    requested_renderer: 'auto',
+    operator: { headset: '', os_version: '', browser_version: '', browser_flags: '' },
+    runtime: null,
+    sessions: [],
+    errors: [],
+};
+
+function xrReportError(message) {
+    if (XRReport.errors.length < 100) XRReport.errors.push(String(message));
+    xrReportRefresh();
+}
+
+function xrReportAssessment() {
+    const runtime = XRReport.runtime;
+    const driver = runtime && runtime.driver;
+    const requested = XRReport.requested_renderer;
+    const expected = requested === 'webgl' ? 'opengl3' : requested;
+    if (XRReport.errors.length) return 'failed';
+    if (!runtime) return 'pending-runtime';
+    if (requested !== 'auto' && driver !== expected) return 'failed-renderer-mismatch';
+    const session = XRReport.sessions[XRReport.sessions.length - 1];
+    if (!session || !session.frame) return 'pending-immersive-frame';
+    if (session.failure) return 'failed-session';
+    const binding = driver === 'webgpu' ? 'webgpu' : 'webgl';
+    if (session.frame.binding !== binding || session.binding !== binding) return 'failed-binding-mismatch';
+    if (session.frame.views !== 2) return 'pending-stereo-verification';
+    return 'immersive-path-observed';
+}
+
+function xrReportSnapshot() {
+    const copy = JSON.parse(JSON.stringify(XRReport));
+    copy.exported_at = new Date().toISOString();
+    copy.path_assessment = xrReportAssessment();
+    const build = copy.runtime && copy.runtime.build;
+    copy.provenance_complete = !!(build && build.identity_complete
+        && copy.runtime.engine.hash === build.editor.hash);
+    copy.visual_correctness = 'requires-headset-observation';
+    copy.performance = 'not-measured';
+    copy.operator_metadata_complete = Object.values(copy.operator).every((value) => value.trim().length > 0);
+    return copy;
+}
+
+function xrReportRefresh() {
+    const status = document.getElementById('xr-report-status');
+    if (status) status.textContent = xrReportAssessment();
+}
+
+window.godotXRRuntimeReport = function (json) {
+    XRReport.runtime = JSON.parse(json);
+    xrReportRefresh();
+};
+window.addEventListener('godot-xr-diagnostic', function (event) {
+    const detail = event.detail;
+    if (detail.type === 'requested') {
+        if (XRReport.sessions.length >= 100) XRReport.sessions.shift();
+        XRReport.sessions.push({ mode: detail.mode, started_at: new Date().toISOString() });
+    }
+    const session = XRReport.sessions[XRReport.sessions.length - 1];
+    if (session && detail.type === 'started') Object.assign(session, detail);
+    if (session && detail.type === 'frame') session.frame = detail;
+    if (session && detail.type === 'ended') session.ended_at = new Date().toISOString();
+    if (detail.type === 'failure') {
+        if (session) session.failure = detail.message;
+        xrReportError(detail.message);
+    }
+    xrReportRefresh();
+});
+window.addEventListener('error', (event) => xrReportError(event.message || 'Resource load failed'));
+window.addEventListener('unhandledrejection', (event) => xrReportError(String(event.reason)));
+window.addEventListener('godot-webgpu-device-lost', () => xrReportError('WebGPU device lost'));
+
+// Always available after XR exit, including on startup failures.
+const reportPanel = document.createElement('details');
+reportPanel.style.cssText = 'position:fixed;top:8px;right:8px;z-index:20;background:#17212b;color:white;padding:10px;max-width:340px;font:14px sans-serif;max-height:85vh;overflow:auto';
+reportPanel.innerHTML = '<summary>XR test report</summary><p id="xr-report-status">pending-runtime</p><p>Path evidence only. Verify both eyes in the headset, then exit XR to download.</p>';
+for (const mode of ['auto', 'webgl', 'webgpu']) {
+    const button = document.createElement('button');
+    button.textContent = mode === 'auto' ? 'Automatic' : mode === 'webgl' ? 'WebGL test' : 'WebGPU test';
+    button.onclick = function () {
+        const url = new URL(location.href);
+        url.searchParams.set('renderer', mode);
+        location.assign(url.href);
+    };
+    reportPanel.appendChild(button);
+}
+for (const [key, label] of Object.entries({ headset: 'Headset model', os_version: 'Headset OS version', browser_version: 'Browser version', browser_flags: 'Browser flags (enter none if default)' })) {
+    const row = document.createElement('label');
+    row.style.display = 'block';
+    row.textContent = label;
+    const input = document.createElement('input');
+    input.style.cssText = 'display:block;width:95%;margin:4px 0 8px';
+    input.oninput = () => { XRReport.operator[key] = input.value; };
+    row.appendChild(input);
+    reportPanel.appendChild(row);
+}
+const downloadReport = document.createElement('button');
+downloadReport.textContent = 'Download JSON report';
+downloadReport.onclick = function () {
+    const blob = new Blob([JSON.stringify(xrReportSnapshot(), null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'godot-xr-report-' + Date.now() + '.json';
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+reportPanel.appendChild(downloadReport);
+document.body.appendChild(reportPanel);
+
 // Renderer preference, set by the in-app menu (WebXRRenderer.switch_to).
 // With no saved preference, flat desktop launches use WebGPU while browsers
 // that can enter immersive WebXR keep WebGL's broader XR feature coverage.
@@ -122,11 +239,13 @@ async function configureRenderer() {
 	window.__godotWebGPUCapable = flatWebGPUCapable;
 	window.__godotWebXRWebGPUCapable = !!(flatWebGPUCapable && ('XRGPUBinding' in window));
 
-	let preference = '';
+	let preference = new URLSearchParams(location.search).get('renderer');
+	if (!['auto', 'webgl', 'webgpu'].includes(preference)) preference = '';
 	try {
-		preference = localStorage.getItem('godot_renderer') || '';
+		preference = preference || localStorage.getItem('godot_renderer') || '';
 	} catch (e) {}
 
+	XRReport.requested_renderer = preference || 'auto';
 	let immersiveSupported = false;
 	if (navigator.xr && typeof navigator.xr.isSessionSupported === 'function') {
 		const timeout = new Promise((resolve) => {
@@ -144,10 +263,12 @@ async function configureRenderer() {
 	// When no immersive runtime is present, tell the adaptive engine loader this
 	// is a flat launch so navigator.xr alone cannot force an unnecessary WebGL
 	// fallback on browsers that lack XRGPUBinding.
-	if (!immersiveSupported) {
-		GODOT_CONFIG['requiresWebXR'] = false;
-	}
+	GODOT_CONFIG['requiresWebXR'] = immersiveSupported;
 
+	XRReport.immersive_support_probe = immersiveSupported;
+	if (preference === 'webgpu' && !flatWebGPUCapable) {
+		throw new Error('WebGPU test requested, but this export or browser cannot initialize WebGPU.');
+	}
 	if (preference === 'webgl' || !flatWebGPUCapable) {
 		GODOT_CONFIG['experimentalWebGPU'] = false;
 	} else if (preference === 'webgpu') {
@@ -192,6 +313,7 @@ async function configureRenderer() {
 	}
 
 	function displayFailureNotice(err) {
+		xrReportError(String(err));
 		console.error(err);
 		if (err instanceof Error) {
 			setStatusNotice(err.message);
@@ -204,7 +326,13 @@ async function configureRenderer() {
 		initializing = false;
 	}
 
-	await configureRenderer();
+	try {
+		await configureRenderer();
+	} catch (error) {
+		xrReportError(String(error));
+		displayFailureNotice(error);
+		return;
+	}
 	const engine = new Engine(GODOT_CONFIG);
 
 	const missing = Engine.getMissingFeatures({
@@ -251,11 +379,15 @@ async function configureRenderer() {
 		}
 	} else {
 		setStatusMode('progress');
+		const launchArgs = window.isSecureContext ? [] : ['--audio-driver', 'Dummy'];
+		if (!GODOT_CONFIG['experimentalWebGPU']) {
+			launchArgs.push('--rendering-driver', 'opengl3', '--rendering-method', 'gl_compatibility');
+		}
 		engine.startGame({
 			// Non-secure origins (LAN IP over plain HTTP) have no AudioWorklet, so
 			// Godot's WebAudio init crashes on 'addModule'. Use the dummy audio
 			// driver there; keep real audio on secure origins (localhost/HTTPS).
-			'args': window.isSecureContext ? [] : ['--audio-driver', 'Dummy'],
+			'args': launchArgs,
 			'onProgress': function (current, total) {
 				if (current > 0 && total > 0) {
 					statusProgress.value = current;
