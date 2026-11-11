@@ -53,7 +53,7 @@ func _ready() -> void:
  var environment := WorldEnvironment.new()
  environment.environment = Environment.new()
  environment.environment.background_mode = Environment.BG_COLOR
- environment.environment.background_color = Color.BLACK
+ environment.environment.background_color = Color(1,0,1,1)
  environment.environment.tonemap_mode = Environment.TONE_MAPPER_LINEAR
  add_child(environment)
  viewport_rid = get_viewport().get_viewport_rid()

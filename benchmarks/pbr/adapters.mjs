@@ -18,7 +18,7 @@ try {
         await engine.initAsync();
         engine.setSize(1280, 720);
         const scene = new B.Scene(engine); scene.useRightHandedSystem = true;
-        scene.clearColor = new B.Color4(0, 0, 0, 1);
+        scene.clearColor = new B.Color4(1, 0, 1, 1);
         const camera = new B.FreeCamera('camera', new B.Vector3(0, 0, 30), scene);
         camera.setTarget(B.Vector3.Zero()); camera.mode = B.Camera.ORTHOGRAPHIC_CAMERA;
         camera.orthoTop = 11; camera.orthoBottom = -11; camera.orthoLeft = -11 * 16 / 9; camera.orthoRight = 11 * 16 / 9;
@@ -27,7 +27,8 @@ try {
 uniform worldViewProjection:mat4x4f; varying vNormal:vec3f; varying vUV:vec2f;
 @vertex fn main(input:VertexInputs)->FragmentInputs {vertexOutputs.position=uniforms.worldViewProjection*vec4f(vertexInputs.position,1.0);vertexOutputs.vNormal=vertexInputs.normal;vertexOutputs.vUV=vertexInputs.uv;}`;
         const fragment=`varying vNormal:vec3f; varying vUV:vec2f; uniform params:vec4f; uniform rough:f32;
-var patternSampler:sampler;var pattern:texture_2d<f32>;
+var pattern:texture_2d<f32>;
+var patternSampler:sampler;
 ${kernel}
 @fragment fn main(input:FragmentInputs)->FragmentOutputs {let a=textureSample(pattern,patternSampler,fragmentInputs.vUV).rgb*uniforms.params.rgb;fragmentOutputs.color=vec4f(encodeSrgb(pbr(fragmentInputs.vNormal,a,uniforms.params.a,uniforms.rough)),1.0);}`;
         const texture=B.RawTexture.CreateRGBATexture(new Uint8Array(manifest.texture),16,16,scene,false,false,B.Texture.NEAREST_SAMPLINGMODE);
@@ -48,14 +49,23 @@ ${kernel}
         app.setCanvasResolution(P.RESOLUTION_FIXED, 1280, 720);
         app.scene.toneMapping = P.TONEMAP_NONE;
         const camera = new P.Entity('camera');
-        camera.addComponent('camera', { projection: P.PROJECTION_ORTHOGRAPHIC, orthoHeight: 11, nearClip: .1, farClip: 100, clearColor: new P.Color(0, 0, 0, 1) });
+        camera.addComponent('camera', { projection: P.PROJECTION_ORTHOGRAPHIC, orthoHeight: 11, nearClip: .1, farClip: 100, clearColor: new P.Color(1, 0, 1, 1) });
         camera.setPosition(0, 0, 30); app.root.addChild(camera);
         const mesh = new P.Mesh(device);mesh.setPositions(manifest.vertices);mesh.setNormals(manifest.normals);mesh.setUvs(0,manifest.uvs);mesh.setIndices(manifest.indices);mesh.update();
-        const vertex=`attribute vertex_position:vec3f;attribute vertex_normal:vec3f;attribute vertex_texCoord0:vec2f;
-uniform matrix_model:mat4x4f;uniform matrix_viewProjection:mat4x4f;varying vNormal:vec3f;varying vUV:vec2f;
+        const vertex=`attribute vertex_position:vec3f;
+attribute vertex_normal:vec3f;
+attribute vertex_texCoord0:vec2f;
+uniform matrix_model:mat4x4f;
+uniform matrix_viewProjection:mat4x4f;
+varying vNormal:vec3f;
+varying vUV:vec2f;
 @vertex fn vertexMain(input:VertexInput)->VertexOutput{var o:VertexOutput;o.position=uniform.matrix_viewProjection*uniform.matrix_model*vec4f(input.vertex_position,1.0);o.vNormal=input.vertex_normal;o.vUV=input.vertex_texCoord0;return o;}`;
-        const fragment=`varying vNormal:vec3f;varying vUV:vec2f;uniform params:vec4f;uniform rough:f32;
-var patternSampler:sampler;var pattern:texture_2d<f32>;
+        const fragment=`varying vNormal:vec3f;
+varying vUV:vec2f;
+uniform params:vec4f;
+uniform rough:f32;
+var pattern:texture_2d<f32>;
+var patternSampler:sampler;
 ${kernel}
 @fragment fn fragmentMain(input:FragmentInput)->FragmentOutput{var o:FragmentOutput;let a=textureSample(pattern,patternSampler,input.vUV).rgb*uniform.params.rgb;o.color=vec4f(encodeSrgb(pbr(input.vNormal,a,uniform.params.a,uniform.rough)),1.0);return o;}`;
         const texture=new P.Texture(device,{width:16,height:16,format:P.PIXELFORMAT_RGBA8,mipmaps:false,minFilter:P.FILTER_NEAREST,magFilter:P.FILTER_NEAREST});texture.lock().set(new Uint8Array(manifest.texture));texture.unlock();
@@ -67,3 +77,5 @@ ${kernel}
         app.start();
     } else throw new Error('Unknown engine');
 } catch (e) { bench.error = String(e); console.error(e); }
+
+
