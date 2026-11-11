@@ -48,6 +48,8 @@ try {
             fs.writeFileSync(path.join(logs, `desktop-${mode}-report.json`), JSON.stringify(report, null, 2));
             assert.equal(report.runtime.driver, mode === 'webgpu' ? 'webgpu' : 'opengl3');
             assert.equal(report.requested_renderer, mode);
+            assert.equal(report.runtime.build.identity_complete, true, 'Incomplete build provenance');
+            assert.equal(report.runtime.build.engine_source.revision, report.runtime.engine.hash, 'Runtime/source revision mismatch');
             assert.equal(report.runtime.build.template_sha256.length, 64);
             assert.equal(report.runtime.build.editor_sha256.length, 64);
             assert.equal(report.runtime.build.suite.revision.length, 40);

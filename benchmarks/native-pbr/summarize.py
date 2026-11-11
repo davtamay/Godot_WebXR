@@ -13,6 +13,7 @@ for stub in summary['cases']:
  assert not c['queue']['errors'] and not c['queue']['dropped']
  assert any(re.search(r'XBENCH engine=.* n='+str(c['count'])+r' ',x) for x in c['console'])
  if c['engine'].startswith('godot'):
+  assert c['provenance']['identity_complete']
   assert c['version']['hash'].startswith(config['revision'])
   assert c['provenance']['engine_source']['revision'].startswith(config['revision'])
   assert c['hosting']['shared']==(c['engine']=='godot-threaded')

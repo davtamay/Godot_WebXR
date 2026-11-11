@@ -50,6 +50,7 @@ try{
     item.hosting=await page.evaluate(()=>({isolated:crossOriginIsolated,shared:typeof SharedArrayBuffer!=='undefined'}));
     if(engine.startsWith('godot')){
      item.version=await page.evaluate(()=>nativeBenchVersion);item.provenance=await page.evaluate(()=>nativeBenchProvenance);
+     if(!item.provenance.identity_complete)throw Error('Incomplete build provenance');
      if(!item.version.hash.startsWith(o.revision)||!item.provenance.engine_source.revision.startsWith(o.revision))throw Error('Wrong engine identity');
      if(item.hosting.shared!==(engine==='godot-threaded'))throw Error('Wrong shared-memory hosting');
     }

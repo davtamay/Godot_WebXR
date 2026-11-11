@@ -39,6 +39,7 @@ def run(name,command,cwd=repo,custom_env=None,timeout=1200):
  (out/'status.json').write_text(json.dumps({'passed':False,'sources':heads,'steps':steps},indent=2),encoding='utf-8')
  print(name,'PASS' if result.returncode==0 else 'FAIL',flush=True)
  if result.returncode:raise RuntimeError(name+' failed; see saved log.')
+run('link-suite',[shutil.which('pwsh') or 'powershell','-NoProfile','-File',repo/'setup.ps1','-SuiteDirectory',suite,'-UseExistingCheckout'])
 if not args.skip_build:
  for mode in ['no','yes']:
   run('build-threads-'+mode,['scons','platform=web','target=template_release','threads='+mode,'webgpu=yes','use_closure_compiler=yes','-j'+str(cfg.get('jobs',12))],engine,timeout=14400)
