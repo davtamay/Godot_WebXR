@@ -1,6 +1,6 @@
 param(
     [string]$SuiteDirectory = "",
-    [string]$SuiteRef = "2595f379576804912a224b79efaa1f4a8fce26d5",
+    [string]$SuiteRef = "4dcbceeb0c57f92c8b952021a18cd0f3de67bf15",
     [switch]$UseExistingCheckout
 )
 

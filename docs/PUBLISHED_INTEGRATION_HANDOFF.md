@@ -1,14 +1,14 @@
 # Published demo integration and Claude coordination
 
 The demo consumes XR Suite from https://github.com/davtamay/godot-xr-suite.
-setup.ps1 pins the validated suite commit 2595f379576804912a224b79efaa1f4a8fce26d5
+setup.ps1 pins the validated suite commit 4dcbceeb0c57f92c8b952021a18cd0f3de67bf15
 (XR Suite 1.45.0) so a fresh checkout is reproducible. Bump that pin deliberately
 when validating a newer suite. Addons remain linked from their single source;
 do not copy/fork them into the demo.
 
 This integration includes aligned threaded/single-threaded export presets,
 build provenance, explicit WebGL/WebGPU selection and runtime/GPU-depth reports.
-The matching validated engine candidate is codex/export-closure at 9c1d96cc56.
+The matching validated engine candidate is codex/runtime-error-cleanup at 7ee03402ba.
 Keep the engine's linear patch-stack/upstream-sync protocol; this demo change
 must not rewrite engine or Monday candidate refs. Full Closure and desktop XR
 checks are distinct from deferred Quest 3/Galaxy XR headset validation.
