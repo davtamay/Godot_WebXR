@@ -1,3 +1,7 @@
+## Runtime cleanup and validation — completed
+
+Read docs/CODEX_RUNTIME_CLEANUP_HANDOFF.md first; preserve the isolated patches and Monday refs.
+
 ## PBR CPU optimization follow-up
 
 Read docs/CODEX_PBR_CPU_HANDOFF.md first: desktop validation is complete. The audio candidate is isolated; its small measured CPU decrease is not statistically conclusive. Do not promote the rejected bind-group trial. Preserve Monday and prior benchmark evidence.
