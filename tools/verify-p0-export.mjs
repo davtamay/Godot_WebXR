@@ -13,6 +13,7 @@ fs.mkdirSync(logs, { recursive: true });
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png' };
 const server = http.createServer((request, response) => {
     const url = new URL(request.url, 'http://localhost');
+    if (url.pathname === '/favicon.ico') {response.writeHead(204).end();return;}
     const file = path.resolve(root, '.' + decodeURIComponent(url.pathname === '/' ? '/index.html' : url.pathname));
     if (!file.startsWith(root + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
         response.writeHead(404).end();
@@ -59,7 +60,7 @@ try {
             await download.saveAs(path.join(logs, `downloaded-${mode}-report.json`));
             const saved = JSON.parse(fs.readFileSync(path.join(logs, `downloaded-${mode}-report.json`), 'utf8'));
             assert.equal(saved.runtime.build.build_id, report.runtime.build.build_id);
-            assert.equal(messages.some(line => line.startsWith('[pageerror]')), false);
+            assert.equal(messages.some(line => line.startsWith('[pageerror]') || line.startsWith('[error]')), false, 'Engine/browser console error');
             await page.screenshot({ path: path.join(logs, `desktop-${mode}.png`) });
             console.log(`${mode}: runtime, manifest, pending XR state and JSON download verified`);
         } finally {

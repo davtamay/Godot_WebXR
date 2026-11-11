@@ -1,0 +1,11 @@
+# Desktop regression gate
+
+Run `python tools/run-xr-regressions.py --config <machine-config.json> --output <new-output-directory>` before promoting a candidate. Add `--skip-build` only when the matching editor and both full Closure templates have already been built. The runner checks the editor revision and the runtime fixtures check the actual engine revision.
+
+The machine configuration supplies `engine`, `suite`, `testbed`, `emsdk`, `bash`, `stock_editor`, `iwer`, and `baseline_audio` paths; `jobs` is optional. The testbed must be an isolated copy containing baketest, boot-noflag.mjs, package.json, Playwright node_modules and the pinned IWER dependency. Never point it at another agent's active testbed: rendering gates temporarily change its project settings. baseline_audio is the preserved baseline 2f3fd8aa21 audio fixture export with Web and WebThreads directories.
+
+All three source checkouts must be clean. The gate serially runs both full Closure builds and the editor, strict Mobile/Forward+ rendering and MSAA, stack boundaries, no-SAB XR emulation, exports/resource parity for the audio/native-PBR/full-demo projects, audio lifecycle checks, native-PBR error checks, both demo renderer selections in both thread modes, package/shell checks and all 16 stock/custom suite profile checks. A nonzero exit, runtime error or missing completion marker fails the run. status.json remains passed=false until all stages complete and source revisions are rechecked. Reports and previous exports are never overwritten.
+
+Run the performance matrix separately, after this gate completes, with no builds or other GPU tests active. `benchmarks/native-pbr/measure.mjs` records separate process CPU, callback wall and common GPU scopes. Do not turn the correctness run's callback logs into benchmark claims.
+
+The engine branch's existing baseline CI now builds stock/WebGPU in both thread modes and requires XR glue checks in both modes; the no-thread XR job has no shared-memory isolation. The suite's existing release pipeline also runs package and shell checks on master pushes and pull requests. These workflow edits require a push to execute remotely; local desktop results do not imply a GitHub run occurred. Monday's frozen ref and upstream replay stay separate from these candidates.

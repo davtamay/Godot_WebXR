@@ -4,7 +4,7 @@ import http from 'node:http';
 import {createRequire} from 'node:module';
 const root=path.resolve(process.argv[2]),out=path.resolve(process.argv[3]);
 fs.mkdirSync(out,{recursive:true});
-const require=createRequire('C:/Users/davta/work/engine-demo-merge/testbed/package.json');
+const require=createRequire(path.join(process.env.GODOT_WEBGPU_TESTBED||'C:/Users/davta/work/engine-demo-merge/testbed','package.json'));
 const {chromium}=require('playwright');
 const server=http.createServer((req,res)=>{
  const name=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
