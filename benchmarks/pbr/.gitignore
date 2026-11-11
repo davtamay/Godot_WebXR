@@ -1,0 +1,4 @@
+node_modules/
+godot/addons/
+build/
+results/

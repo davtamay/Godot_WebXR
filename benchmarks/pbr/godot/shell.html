@@ -1,0 +1,6 @@
+<!doctype html><html><head><style>canvas{outline:none;display:block}</style><meta charset="utf-8">$GODOT_HEAD_INCLUDE</head><body style="margin:0;background:black"><canvas id="canvas" width="1280" height="720"></canvas><script>
+window.bench={ready:false,collecting:false,frames:[],metadata:null};window.benchMetadata=s=>bench.metadata=JSON.parse(s);window.benchTick=(frame,draws)=>{bench.ready=true;if(bench.collecting)bench.frames.push({frame,draws});};
+</script><script src="$GODOT_URL"></script><script>
+const config=$GODOT_CONFIG;config.canvas=document.getElementById('canvas');config.canvasResizePolicy=0;config.experimentalWebGPU=true;
+new Engine(config).startGame().catch(e=>{window.bench.error=String(e);console.error(e)});
+</script></body></html>
