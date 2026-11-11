@@ -80,5 +80,5 @@ s=s[:s.index('func _frame()')]+'''func _frame() -> void:
  js.benchTick(frame,int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
 '''
 s=s.replace('"gpu_scope":"Godot viewport timestamp interval; asynchronously returned latest sample", "cpu_scope":"viewport CPU plus frame setup; excludes script/update"','"gpu_scope":"shared queue-submit wrapper", "cpu_scope":"renderer-process CPU including worker threads"')
-f.write_text(s)
+f.write_text(s.replace("Color.BLACK","Color(1,0,1,1)"))
 f=g/'shell.html';s=Path('benchmarks/matched/godot/shell.html').read_text();s=s.replace('window.benchFrame=s=>{bench.ready=true;if(bench.collecting)bench.frames.push(JSON.parse(s));};','window.benchTick=(frame,draws)=>{bench.ready=true;if(bench.collecting)bench.frames.push({frame,draws});};');f.write_text(s)

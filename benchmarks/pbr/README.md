@@ -10,4 +10,4 @@ Validation thresholds declared before results: exact requested draw counts, stab
 
 Dependencies remain pinned to the existing Babylon.js 9.35.0 and PlayCanvas 2.24.0 lock. node_modules is linked to ../matched/node_modules locally; npm ci --ignore-scripts can install it independently. Link godot_webgpu from the validated isolated suite into godot/addons. Source generator: python benchmarks/pbr/generate.py. Import, commit source, then export with tools/export-web-matrix.py using the existing validated editor/templates and both Tint binaries. The engine and Monday snapshots are unchanged.
 
-Set GODOT_WEBGPU_TESTBED to the Playwright testbed. Run node benchmarks/pbr/run.mjs --out <results> --profile off, and again with --profile on. Use identical durations/order/versions for both series; alternate series order to reduce drift. No headset testing or overall renderer ranking is implied.
+Set GODOT_WEBGPU_TESTBED to the Playwright testbed. Run node benchmarks/pbr/run.mjs --out <results> --profile both. This alternates on/off order by repetition and rotates engine order. No headset testing or overall renderer ranking is implied.

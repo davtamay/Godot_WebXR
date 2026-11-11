@@ -3,14 +3,16 @@
     const originalSubmit = GPUQueue.prototype.submit;
     const queues = new WeakMap();
     const pending = new Set();
+    const validationErrors = [];
     const scope = window.queueScope = { collecting: false, samples: [], errors: [], dropped: 0, submissions: 0, features: [], profile: window.PROFILE_GPU !== false };
     scope.start = () => { scope.samples = []; scope.errors = []; scope.dropped = 0; scope.submissions = 0; scope.collecting = true; };
-    scope.stop = async () => { scope.collecting = false; await Promise.all([...pending]); return { samples: scope.samples, errors: scope.errors, dropped: scope.dropped, submissions: scope.submissions, features: scope.features, profile: scope.profile }; };
+    scope.stop = async () => { scope.collecting = false; await Promise.all([...pending]); return { samples: scope.samples, errors: [...validationErrors, ...scope.errors], dropped: scope.dropped, submissions: scope.submissions, features: scope.features, profile: scope.profile }; };
     const requestDevice = GPUAdapter.prototype.requestDevice;
     GPUAdapter.prototype.requestDevice = async function(descriptor = {}) {
         const features = new Set(descriptor.requiredFeatures || []);
         if (this.features.has('timestamp-query')) features.add('timestamp-query');
         const device = await requestDevice.call(this, { ...descriptor, requiredFeatures: [...features] });
+        device.addEventListener('uncapturederror', event => validationErrors.push(String(event.error)));
         queues.set(device.queue, { device, slots: [] });
         scope.features.push({ features: [...device.features], adapter: { vendor: this.info?.vendor, architecture: this.info?.architecture, description: this.info?.description } });
         return device;
