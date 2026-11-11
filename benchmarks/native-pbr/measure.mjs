@@ -45,7 +45,7 @@ try{
     page.on('console',m=>{item.console.push(m.type()+': '+m.text());if(m.type()==='error')item.errors.push(m.text());});
     const url=engine==='playcanvas'?'/playcanvas/index.html':`/build/${engine==='godot-single'?'Web':'WebThreads'}/index.html`;
     await page.goto(`${base}${url}?n=${o.count}&common_scope=1${mode==='unique'?'&unique=1':''}`);
-    await page.waitForFunction(()=>document.body.innerText.includes('XBENCH DONE'),null,{timeout:120000});
+    await page.waitForFunction(()=>document.body.innerText.includes('XBENCH DONE'),null,{timeout:120000,polling:100});
     if(item.errors.length)throw Error('Startup errors');
     item.hosting=await page.evaluate(()=>({isolated:crossOriginIsolated,shared:typeof SharedArrayBuffer!=='undefined'}));
     if(engine.startsWith('godot')){

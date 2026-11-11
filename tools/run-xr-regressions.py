@@ -16,6 +16,9 @@ args=parser.parse_args()
 cfg=json.loads(args.config.read_text(encoding='utf-8'))
 repo=Path(__file__).resolve().parents[1]
 engine=Path(cfg['engine']);suite=Path(cfg['suite']);testbed=Path(cfg['testbed'])
+stock_templates=Path(cfg['stock_templates'])
+for name in ['web_release.zip','web_nothreads_release.zip']:
+ if not (stock_templates/name).is_file():raise FileNotFoundError(stock_templates/name)
 out=args.output.resolve()
 if out.exists() and any(out.iterdir()):raise ValueError('Use a new output directory.')
 out.mkdir(parents=True,exist_ok=True)
@@ -71,6 +74,8 @@ for mode in ['Web','WebThreads']:
 run('suite-package',[sys.executable,'tools/test_xr_suite_package.py'],suite)
 run('suite-shell',[node,'tools/test_webxr_shell.mjs'],suite)
 run('suite-compatibility',[sys.executable,'tools/verify_engine_compatibility.py','--stock-editor',cfg['stock_editor'],'--custom-editor',editor,'--custom-revision',heads['engine'],'--output',out/'suite-compatibility'],suite,timeout=1200)
+run('suite-browser-export',[sys.executable,'tools/export_suite_browser.py','--stock-editor',cfg['stock_editor'],'--stock-templates',stock_templates,'--custom-engine',engine,'--output',out/'suite-browser-builds'],suite)
+run('suite-browser-runtime',[node,'tools/verify_suite_browser.mjs',out/'suite-browser-builds',out/'suite-browser-results',heads['engine']],suite)
 for name,path in [('engine',engine),('suite',suite),('demo',repo)]:
  if git(path,'rev-parse','HEAD')!=heads[name] or git(path,'status','--porcelain'):raise RuntimeError('Source changed during regression run: '+name)
 (out/'status.json').write_text(json.dumps({'passed':True,'sources':heads,'editor_version':version,'steps':steps},indent=2),encoding='utf-8')
