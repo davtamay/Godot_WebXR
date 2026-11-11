@@ -1,6 +1,6 @@
 ## PBR CPU optimization follow-up
 
-Read docs/CODEX_PBR_CPU_HANDOFF.md first; Codex is working on isolated optimization branches. Preserve Monday and prior benchmark evidence.
+Read docs/CODEX_PBR_CPU_HANDOFF.md first: desktop validation is complete. The audio candidate is isolated; its small measured CPU decrease is not statistically conclusive. Do not promote the rejected bind-group trial. Preserve Monday and prior benchmark evidence.
 
 ## PBR benchmarks and common timing scopes
 

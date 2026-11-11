@@ -28,7 +28,7 @@ Renderer-process CPU totals measure work across threads, not latency. They can e
 
 ## Isolated CPU follow-up
 
-`run-paired.py` alternates preserved baseline and candidate builds for each count, repetition and profiling mode. It rotates thread-mode order and uses the same scene, audio behavior, browser settings and observation duration. `verify-paired.py` requires pixel-identical output against the preserved baseline, complete GPU samples, frame-callback coverage and the expected engine revisions. The initial comparison uses baseline 2f3fd8aa21 and candidate 3130ee0622.
+`run-paired.py` alternates preserved baseline and candidate builds for each count, repetition and profiling mode. It rotates thread-mode order and uses the same scene, audio behavior, browser settings and observation duration. `verify-paired.py` requires pixel-identical output against the preserved baseline, complete GPU samples, frame-callback coverage and the expected engine revisions. The initial comparison uses baseline 2f3fd8aa21 and candidate 3130ee0622; that bind-group trial did not demonstrate a CPU win and is not recommended for promotion. The separate audio-worker candidate is b5cf19bc20; pass `--candidate-revision b5cf19bc20` to the paired verifier for that dataset.
 
 Optional diagnostics in `run.mjs`:
 
@@ -40,3 +40,5 @@ Optional diagnostics in `run.mjs`:
 - `--buildDir`: serves an explicitly selected export directory without overwriting prior measured artifacts.
 
 The baseline browser trace found a real audio worklet contribution in this silent scene. Claude's older xbench results use frame-callback time, native PBR materials, lights/shadows and much higher object counts; batch mode also exercises automatic draw merging. Do not compare those results directly with process-wide CPU totals or present either fixture as a universal engine ranking. Preserve the shader-error notes present in the older xbench logs.
+
+The audio candidate changes only the threaded mixer wait; single-threaded builds are an unchanged-path control. See `../audio-worker/README.md` for real stream-playback lifecycle coverage and its known baseline warning.
