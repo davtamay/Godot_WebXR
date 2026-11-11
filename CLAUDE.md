@@ -1,3 +1,7 @@
+## PBR CPU optimization follow-up
+
+Read docs/CODEX_PBR_CPU_HANDOFF.md first; Codex is working on isolated optimization branches. Preserve Monday and prior benchmark evidence.
+
 ## PBR benchmarks and common timing scopes
 
 Read docs/CODEX_PBR_BENCHMARK_HANDOFF.md first. This isolated follow-up supersedes the earlier PBR/timing TODO; preserve Monday and original source work.

@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { parseArgs } from 'node:util';
 const root = path.dirname(fileURLToPath(import.meta.url));
-const { values: o } = parseArgs({ options: { out: { type: 'string' }, repeats: { type: 'string', default: '5' }, seconds: { type: 'string', default: '10' }, warmup: { type: 'string', default: '5' }, counts: { type: 'string', default: '24,96,384' }, profile: {type:'string',default:'both'}, engines: { type: 'string', default: 'godot-single,babylon,godot-threaded,playcanvas' }, channel: { type: 'string', default: 'chrome' } } });
+const { values: o } = parseArgs({ options: { out: { type: 'string' }, frameTiming:{type:'boolean',default:false}, audioControl:{type:'string',default:'normal'}, buildDir:{type:'string',default:'build'}, cpuProfile: {type:'boolean',default:false}, commandAudit: {type:'boolean',default:false}, browserTrace: {type:'boolean',default:false}, repeats: { type: 'string', default: '5' }, seconds: { type: 'string', default: '10' }, warmup: { type: 'string', default: '5' }, counts: { type: 'string', default: '24,96,384' }, profile: {type:'string',default:'both'}, engines: { type: 'string', default: 'godot-single,babylon,godot-threaded,playcanvas' }, channel: { type: 'string', default: 'chrome' } } });
 if (!o.out) throw new Error('--out DIRECTORY required');
+if(!['normal','suspended'].includes(o.audioControl))throw new Error('Invalid audio control');
 for (const k of ['repeats','seconds','warmup']) if (!Number.isFinite(Number(o[k])) || Number(o[k]) <= 0) throw new Error(`Invalid ${k}`);
 const require = createRequire(path.join(process.env.GODOT_WEBGPU_TESTBED || process.cwd(), 'package.json'));
 const { chromium } = require('playwright');
@@ -17,8 +18,10 @@ const metadata = { schema: 1, configuration: o, scopeSha256:sha(path.join(root,'
 const server = http.createServer((req,res) => {
     const name = decodeURIComponent(new URL(req.url,'http://local').pathname);
     if (name === '/favicon.ico') { res.writeHead(204).end(); return; }
-    const file = path.resolve(root,'.'+(name === '/' ? '/index.html' : name));
-    if (!file.startsWith(root+path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {res.writeHead(404).end();return;}
+    const servingRoot=name.startsWith('/build/')?path.resolve(root,o.buildDir):root;
+    const relative=name.startsWith('/build/')?name.slice(6):(name==='/'?'/index.html':name);
+    const file = path.resolve(servingRoot,'.'+relative);
+    if (!file.startsWith(servingRoot+path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {res.writeHead(404).end();return;}
     const headers = {'Cache-Control':'no-store','Content-Type':{'.html':'text/html','.js':'application/javascript','.mjs':'application/javascript','.wasm':'application/wasm','.json':'application/json'}[path.extname(file)]||'application/octet-stream'};
     if (!name.startsWith('/build/Web/')) Object.assign(headers,{'Cross-Origin-Opener-Policy':'same-origin','Cross-Origin-Embedder-Policy':'require-corp'});
     res.writeHead(200,headers);fs.createReadStream(file).pipe(res);
@@ -39,21 +42,34 @@ try {
                 const cdp=await browser.newBrowserCDPSession(); const system=await cdp.send('SystemInfo.getInfo'); item.gpu=system.gpu.devices;
                 const page=await browser.newPage({viewport:{width:1280,height:720},deviceScaleFactor:1});
                 await page.addInitScript({content:`window.PROFILE_GPU=${profile==='on'};`+fs.readFileSync(path.join(root,'common-scope.js'),'utf8')});
+                if(o.frameTiming)await page.addInitScript({path:path.join(root,'frame-timing.js')});
+                if(o.audioControl==='suspended')await page.addInitScript(()=>{window.audioContexts=[];for(const name of ['AudioContext','webkitAudioContext']){if(window[name])window[name]=new Proxy(window[name],{construct(target,args,newTarget){const ctx=Reflect.construct(target,args,newTarget);audioContexts.push(ctx);return ctx;}});}});
+                if(o.commandAudit)await page.addInitScript({path:path.join(root,'audit-commands.js')});
                 page.on('pageerror',e=>errors.push(String(e)));page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
                 const url=engine.startsWith('godot')?`${base}/build/${engine==='godot-single'?'Web':'WebThreads'}/index.html?count=${count}`:`${base}/index.html?engine=${engine}&count=${count}`;
                 await page.goto(url,{waitUntil:'domcontentloaded'});
                 await page.waitForFunction(()=>window.bench?.ready||window.bench?.error,null,{timeout:90000});
                 const error=await page.evaluate(()=>bench.error);if(error)throw new Error(error);
+                if(o.audioControl==='suspended')await page.evaluate(async()=>{await Promise.all(audioContexts.map(c=>c.suspend()));if(!audioContexts.length)throw new Error('No audio context for control');});
                 await page.waitForTimeout(Number(o.warmup)*1000);
+                if(o.commandAudit)item.driverPerf=await page.evaluate(()=>window.__godotWebGPUPerf);
                 item.hosting=await page.evaluate(()=>({isolated:crossOriginIsolated,shared:typeof SharedArrayBuffer!=='undefined'}));
+                const profiler=o.cpuProfile?await page.context().newCDPSession(page):null;
+                if(profiler){await profiler.send('Profiler.enable');await profiler.send('Profiler.setSamplingInterval',{interval:100});await profiler.send('Profiler.start');}
+                if(o.browserTrace)await cdp.send('Tracing.start',{categories:'toplevel,devtools.timeline,renderer.scheduler,blink,webgpu',transferMode:'ReturnAsStream'});
                 const cpuBefore=await cdp.send('SystemInfo.getProcessInfo');
                 const start=Date.now();
                 await page.evaluate(()=>{bench.frames=[];bench.collecting=true;queueScope.start();});
                 await page.waitForTimeout(Number(o.seconds)*1000);
                 const captured=await page.evaluate(async()=>{bench.collecting=false;return {frames:bench.frames,metadata:bench.metadata,queue:await queueScope.stop()};});
                 const cpuAfter=await cdp.send('SystemInfo.getProcessInfo');
+                if(o.browserTrace){const done=new Promise(r=>cdp.once('Tracing.tracingComplete',r));await cdp.send('Tracing.end');const {stream}=await done;let trace='';for(;;){const chunk=await cdp.send('IO.read',{handle:stream});trace+=chunk.data;if(chunk.eof)break;}await cdp.send('IO.close',{handle:stream});fs.writeFileSync(path.join(out,id+'.trace.json'),trace);}
+                if(profiler){const {profile}=await profiler.send('Profiler.stop');fs.writeFileSync(path.join(out,id+'.cpuprofile'),JSON.stringify(profile));}
                 item.windowWallMs=Date.now()-start; item.cpuProcessesBefore=cpuBefore.processInfo;item.cpuProcessesAfter=cpuAfter.processInfo;
                 Object.assign(item,captured);
+                if(o.frameTiming){item.frameCallbackTimes=await page.evaluate(()=>window.frameCallbackTimes);item.frameCallbackStats=stats(item.frameCallbackTimes);}
+                if(o.audioControl==='suspended'){item.audioStates=await page.evaluate(()=>audioContexts.map(c=>c.state));if(item.audioStates.some(s=>s!=='suspended'))throw new Error('Audio control resumed unexpectedly');}
+                if(o.commandAudit)item.commandAudit=await page.evaluate(()=>window.commandAudit);
                 const before=new Map(cpuBefore.processInfo.map(p=>[p.id,p]));
                 const renderBefore=cpuBefore.processInfo.filter(p=>p.type==='renderer');
                 const renderAfter=cpuAfter.processInfo.filter(p=>p.type==='renderer');
