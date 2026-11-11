@@ -11,3 +11,17 @@ Validation thresholds declared before results: exact requested draw counts, stab
 Dependencies remain pinned to the existing Babylon.js 9.35.0 and PlayCanvas 2.24.0 lock. node_modules is linked to ../matched/node_modules locally; npm ci --ignore-scripts can install it independently. Link godot_webgpu from the validated isolated suite into godot/addons. Source generator: python benchmarks/pbr/generate.py. Import, commit source, then export with tools/export-web-matrix.py using the existing validated editor/templates and both Tint binaries. The engine and Monday snapshots are unchanged.
 
 Set GODOT_WEBGPU_TESTBED to the Playwright testbed. Run node benchmarks/pbr/run.mjs --out <results> --profile both. This alternates on/off order by repetition and rotates engine order. No headset testing or overall renderer ranking is implied.
+
+The grid keeps approximately constant screen coverage while raising draw/vertex work: 24, 96 and 384 draws with 1,024 indexed triangles each (including degenerate pole triangles). It does not increase fill rate with count. All engines disable back-face culling for this canonical shader. Godot bakes FP16 and FP32 variants and selects according to device support; shader binaries/precision are not identical across engines, so visual equivalence is tested rather than presumed.
+
+Reproduction and acceptance:
+
+1. Run `node benchmarks/pbr/test-scope.mjs` for positive/negative timestamp controls.
+2. Export both variants, then run `python tools/compare-thread-packs.py benchmarks/pbr/build/Web/index.pck benchmarks/pbr/build/WebThreads/index.pck`.
+3. Run `node benchmarks/pbr/run.mjs --counts 24,96,384 --repeats 5 --seconds 5 --warmup 3 --profile both --out <results>` with no other GPU benchmark running.
+4. Run `python benchmarks/pbr/verify.py <results>` and `python benchmarks/pbr/summarize.py <results>`. Do not use results that fail either gate.
+5. Separately run `node benchmarks/pbr/calibrate.mjs <calibration.json>` to check that real GPU timestamps distinguish empty command buffers from sustained compute work. Never run this concurrently with the matrix.
+
+The report uses medians of five independent observation windows. GPU sample counts are submissions, not frame-time percentiles. The extra marker passes and readbacks can affect GPU scheduling; profiling-off CPU controls quantify CPU observer cost but do not remove GPU observer cost. Tiny GPU differences near browser timestamp resolution must not be ranked as meaningful speedups. This remains a desktop/headless scene test, not a headset, native-material completeness, or end-to-end frame-latency result.
+
+Renderer-process CPU totals measure work across threads, not latency. They can exceed elapsed wall time when threads execute concurrently; a threaded build's CPU total alone does not establish its frame-rate advantage or disadvantage.

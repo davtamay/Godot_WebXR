@@ -10,6 +10,10 @@ for f in sorted(root.glob('*.json')):
  j=json.loads(f.read_text());
  if 'engine' not in j:continue
  if j['status']!='passed':fail.append(f.name+': runtime failed');continue
+ if j['engine'].startswith('godot'):
+  threaded=j['engine']=='godot-threaded'
+  if j['hosting']['isolated']!=threaded or j['hosting']['shared']!=threaded:fail.append(f.stem+': unexpected hosting mode')
+  if j['metadata']['provenance']['options']['variant/thread_support']!=threaded:fail.append(f.stem+': unexpected template mode')
  image=root/(f.stem+'.png')
  ref=root/f"godot-single-{j['count']}-{j['repeat']}-{f.stem.rsplit('-',1)[1]}.png"
  x=np.array(Image.open(image).convert('RGB'));y=np.array(Image.open(ref).convert('RGB'))

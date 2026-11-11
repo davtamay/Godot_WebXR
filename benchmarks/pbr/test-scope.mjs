@@ -16,5 +16,6 @@ f=await fixture({feature:false});f.scope.start();f.device.queue.submit(['work'])
 for(const options of [{reversed:true},{fail:true}]){f=await fixture(options);f.scope.start();f.device.queue.submit([]);r=await f.scope.stop();assert.equal(r.errors.length,1);assert.equal(r.samples.length,0);}
 f=await fixture({delayed:true});f.scope.start();for(let i=0;i<33;i++)f.device.queue.submit([]);assert.equal(f.scope.dropped,1);f.release.forEach(r=>r());r=await f.scope.stop();assert.equal(r.samples.length,32);assert.equal(r.submissions,33);
 f=await fixture();f.error();f.scope.start();r=await f.scope.stop();assert.equal(r.errors.length,1);
-console.log('7 common-scope controls passed: interval, off, unsupported, reversed, map failure, pool exhaustion, validation error');
+f=await fixture({delayed:true});f.device.queue.submit(['warmup']);f.scope.start();f.device.queue.submit(['first']);f.device.queue.submit(['second']);f.release.reverse().forEach(r=>r());r=await f.scope.stop();assert.equal(r.samples.length,2);assert.equal(new Set(r.samples.map(x=>x.ordinal)).size,2);assert.equal(r.submissions,2);
+console.log('8 common-scope controls passed: interval, off, unsupported, reversed, map failure, pool exhaustion, validation error, asynchronous identity/warmup exclusion');
 

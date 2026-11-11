@@ -1,11 +1,18 @@
 """Summarize independent repetitions, keeping CPU-off and GPU-on scopes separate."""
-import json,statistics,csv,argparse
+import json,statistics,csv,argparse,math
 from pathlib import Path
 p=argparse.ArgumentParser();p.add_argument('directory');a=p.parse_args();root=Path(a.directory)
 summary=json.loads((root/'summary.json').read_text());validation=json.loads((root/'validation.json').read_text())
 assert summary.get('finished') and validation['passed'], 'Complete, visually validated runs required'
 cases=[json.loads((root/(c['id']+'.json')).read_text()) for c in summary['cases']]
 assert len(cases)==120 and all(c['status']=='passed' for c in cases)
+for c in cases:
+ assert c['metrics']['frames']>0 and c['queue']['submissions']>0
+ assert math.isfinite(c['metrics']['rendererCpuMsPerFrame']) and c['metrics']['rendererCpuMsPerFrame']>0
+ if c['id'].endswith('-on'):
+  assert len(c['queue']['samples'])==c['queue']['submissions']
+  assert all(math.isfinite(x['gpuMs']) and x['gpuMs']>=0 for x in c['queue']['samples'])
+  assert len({x['ordinal'] for x in c['queue']['samples']})==c['queue']['submissions']
 rows=[]
 for count in [24,96,384]:
  for engine in ['godot-single','godot-threaded','babylon','playcanvas']:
