@@ -5,9 +5,9 @@ This is a functional stream-playback check, not a performance benchmark. The gen
 Export the project with the two builds under `Baseline/Web`, `Baseline/WebThreads`, `Candidate/Web`, and `Candidate/WebThreads`, then run:
 
 ```
-node benchmarks/audio-worker/verify.mjs <build-root> <result-directory>
+node benchmarks/audio-worker/verify.mjs <build-root> <result-directory> <candidate-revision>
 ```
 
-The current fixture pins baseline engine `2f3fd8aa21` and audio candidate `b5cf19bc20`; update those expectations deliberately for a later comparison. It checks signal amplitude/frequency, suspension, resumed playback, and exit from both running and suspended states in both thread modes. Single-threaded pages have no cross-origin isolation headers.
+The fixture pins baseline engine `2f3fd8aa21` and requires the candidate revision as an argument. It waits for the audio clock to advance before sampling, with a five-second readiness timeout. It checks signal amplitude/frequency, suspension, resumed playback, and exit from both running and suspended states in both thread modes. Single-threaded pages have no cross-origin isolation headers.
 
-Both builds currently emit the same two-object ObjectDB cleanup warning on exit. The exact known warning and its source location are retained in `knownBaselineWarnings`; other console/page errors fail the test. This warning remains unresolved. Passing this test does not establish device-specific audio latency, absence of every underrun, or headset behavior.
+The baseline emits a two-object ObjectDB cleanup warning. Only that exact baseline signature is retained as `knownBaselineWarnings`; the candidate must exit without console or page errors. The candidate receives no warning exemption. Verbose candidate output exposes leaked object identities. Passing this short test does not establish device-specific audio latency, absence of every underrun, or headset behavior.

@@ -65,6 +65,10 @@ func _imul(a: int, b: int) -> int: # Math.imul on unsigned 32-bit values
 
 func _ready() -> void:
 	_web = OS.has_feature("web")
+	if _web:
+		JavaScriptBridge.eval("window.nativeBenchVersion=" + JSON.stringify(Engine.get_version_info()), true)
+		if FileAccess.file_exists("res://xr_build_provenance.json"):
+			JavaScriptBridge.eval("window.nativeBenchProvenance=" + FileAccess.get_file_as_string("res://xr_build_provenance.json"), true)
 	var probe := PackedStringArray()
 	for i in 5:
 		probe.append("%.6f" % _rand())
@@ -72,7 +76,7 @@ func _ready() -> void:
 	_state = SEED
 	get_viewport().msaa_3d = Viewport.MSAA_4X
 	RenderingServer.directional_shadow_atlas_set_size(2048, true)
-	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), true)
+	RenderingServer.viewport_set_measure_render_time(get_viewport().get_viewport_rid(), not _web or not bool(JavaScriptBridge.eval("new URLSearchParams(location.search).has('common_scope')", true)))
 	_ramp = RAMP.duplicate()
 	var n_arg := ""
 	if _web:

@@ -8,6 +8,7 @@
 // Results are printed as XBENCH lines (for the console tap / bench harness)
 // and painted into a DOM overlay so a phone shows them without devtools.
 (function () {
+	if (window.__xbench?.ready) return; // Godot may request this script again during startup.
 	const nativeRaf = window.requestAnimationFrame.bind(window);
 	let recording = false;
 	let frames = 0, cbMs = 0, cbMax = 0, longFrames = 0;

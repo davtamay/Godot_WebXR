@@ -1,0 +1,11 @@
+{
+  "playcanvas": "2.23.3",
+  "source": "https://cdn.jsdelivr.net/npm/playcanvas@2.23.3/build/playcanvas.mjs",
+  "files_sha256": {
+    "playcanvas\\lib\\playcanvas.mjs": "a06c7ba504e28b47d519e2fd7bc2446e716268297cfb34ced16e23dac6367a55",
+    "playcanvas\\lib\\glslang\\glslang.js": "c4d874b63615e4ed03a739eb01506282c25e03954d97f13dfd9a2c9e06138120",
+    "playcanvas\\lib\\glslang\\glslang.wasm": "d79453e0803ebcdf3753c6b1d8d51543b52fed96f7f0d4aec94acd847e225169",
+    "playcanvas\\lib\\twgsl\\twgsl.js": "b4f1f66263b801210f955f74aa71f1939be647ce0fd80ea5befd12a78499d5ff",
+    "playcanvas\\lib\\twgsl\\twgsl.wasm": "a434c2decdbb38caadf5f486d806384a1543554828c983c77922b2d92579914c"
+  }
+}

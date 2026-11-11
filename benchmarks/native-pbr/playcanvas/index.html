@@ -1,0 +1,254 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xbench PlayCanvas</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#000}canvas{display:block;width:100%;height:100%}</style>
+<!-- Loaded BEFORE the engine so its rAF wrapper is the one PlayCanvas's tick
+     ends up calling - same contract as the three.js and Babylon legs. -->
+<script src="../common/xbench_timer.js"></script>
+</head>
+<body>
+<canvas id="app"></canvas>
+<script type="module">
+import * as pc from "./lib/playcanvas.mjs";
+import { MAX_N, WARM_MS, MEASURE_MS, FLOOR_SIZE, CAMERA, SUN, AMBIENT, MATERIALS, FLOOR_MATERIAL,
+	makeObjects, makeLights, urlParams, prngProbe, uniqueMaterial } from "../common/xbench_scene.js";
+
+const X = window.__xbench;
+const params = urlParams();
+const mode = params.unique ? "unique" : "batch";
+X.note("PlayCanvas " + pc.version + " WebGPU, mode=" + mode);
+X.note("prng " + prngProbe());
+
+const canvas = document.getElementById("app");
+
+// PlayCanvas authors its built-in shaders in GLSL and transpiles them in the
+// BROWSER - glslang compiles GLSL to SPIR-V, twgsl converts SPIR-V to WGSL -
+// so the WebGPU device wants both WASM blobs or shader creation fails with
+// "Cannot transpile shader". That is the opposite of this project's model
+// (bake SPIR-V to WGSL at export time with tint) and of what Babylon settled
+// on (hand-written WGSL); it is also the reason the blobs below are a hard
+// dependency of the leg rather than an optimisation. They are not in the npm
+// package, so they come from the engine repo at the matching tag.
+//
+// ?notranspile=1 drops them: 2.x has a WGSL shader path, and if a future
+// release stops needing the transpilers for the standard material this leg
+// should notice rather than carry dead weight.
+// Vendored from playcanvas/engine@v2.23.3 examples/assets/wasm, deliberately
+// NOT loaded from a CDN: PlayCanvas derives the .wasm URL with an UNANCHORED
+// `twgslUrl.replace(".js", ".wasm")`, so any jsDelivr URL has its FIRST ".js"
+// rewritten and "cdn.jsdelivr.net" becomes "cdn.wasmdelivr.net" (verified
+// against 2.23.3: ERR_NAME_NOT_RESOLVED on exactly that host). Serving them
+// beside the page sidesteps it and keeps the benchmark reproducible offline -
+// 2.6 MB of transpiler WASM that must download and initialise before the first
+// frame, which is itself part of what this leg measures.
+const libBase = "lib/";
+const noTranspile = new URLSearchParams(location.search).get("notranspile") === "1";
+
+const deviceOptions = {
+	deviceTypes: ["webgpu"],
+	antialias: true,
+	powerPreference: "high-performance",
+};
+if (!noTranspile) {
+	deviceOptions.glslangUrl = libBase + "glslang/glslang.js";
+	deviceOptions.twgslUrl = libBase + "twgsl/twgsl.js";
+}
+
+let device;
+try {
+	device = await pc.createGraphicsDevice(canvas, deviceOptions);
+} catch (e) {
+	X.note("device creation FAILED: " + e.message);
+	throw e;
+}
+X.note("device: " + (device.isWebGPU ? "WebGPU" : device.isWebGL2 ? "WebGL2" : "unknown") +
+	" transpilers=" + (device.glslang && device.twgsl ? "loaded" : "absent"));
+if (!device.isWebGPU) {
+	// The whole point of the leg is the WebGPU path; silently benchmarking
+	// their WebGL2 renderer would be a wrong number, not a missing one.
+	X.note("ABORT: not a WebGPU device");
+	throw new Error("xbench playcanvas: WebGPU device required");
+}
+device.maxPixelRatio = window.devicePixelRatio;
+
+const app = new pc.AppBase(canvas);
+app.init({
+	graphicsDevice: device,
+	componentSystems: [pc.RenderComponentSystem, pc.CameraComponentSystem, pc.LightComponentSystem],
+	resourceHandlers: [],
+});
+app.setCanvasFillMode(pc.FILLMODE_FILL_WINDOW);
+app.setCanvasResolution(pc.RESOLUTION_AUTO);
+app.scene.ambientLight = new pc.Color(AMBIENT, AMBIENT, AMBIENT);
+
+const camera = new pc.Entity("camera");
+camera.addComponent("camera", {
+	fov: CAMERA.fov,
+	nearClip: CAMERA.near,
+	farClip: CAMERA.far,
+	clearColor: new pc.Color(0.06, 0.07, 0.10),
+});
+// Tone mapping moved from the scene onto the camera in 2.x; set whichever
+// this build exposes rather than assuming, so the leg survives the next bump.
+if ("toneMapping" in camera.camera) {
+	camera.camera.toneMapping = pc.TONEMAP_ACES;
+} else if ("toneMapping" in app.scene) {
+	app.scene.toneMapping = pc.TONEMAP_ACES;
+}
+app.root.addChild(camera);
+
+// A PlayCanvas directional light shines along its own forward (-Z), so the
+// shared SUN.dir is applied by aiming the entity rather than by position.
+const sun = new pc.Entity("sun");
+sun.addComponent("light", {
+	type: "directional",
+	color: new pc.Color(1, 1, 1),
+	intensity: 2.0,
+	castShadows: true,
+	shadowResolution: SUN.shadow_size,
+	shadowDistance: 90,
+	shadowBias: 0.02,
+	normalOffsetBias: 0.05,
+	numCascades: 1,
+});
+sun.setPosition(-SUN.dir[0] * 30, -SUN.dir[1] * 30, -SUN.dir[2] * 30);
+sun.lookAt(0, 0, 0);
+app.root.addChild(sun);
+
+for (const l of makeLights()) {
+	const p = new pc.Entity();
+	p.addComponent("light", {
+		type: "omni",
+		color: new pc.Color(l.color[0], l.color[1], l.color[2]),
+		intensity: 2.0,
+		range: l.range,
+		castShadows: false,
+	});
+	p.setPosition(l.x, l.y, l.z);
+	app.root.addChild(p);
+}
+
+// PlayCanvas has no roughness on StandardMaterial - it is gloss, the
+// complement - so the shared spec is converted here rather than in the spec.
+function makeMaterial(m) {
+	const mat = new pc.StandardMaterial();
+	mat.useMetalness = true;
+	mat.diffuse = new pc.Color(m.color[0], m.color[1], m.color[2]);
+	mat.metalness = m.metallic;
+	mat.gloss = 1 - m.roughness;
+	mat.update();
+	return mat;
+}
+
+const materials = MATERIALS.map(makeMaterial);
+
+const floor = new pc.Entity("floor");
+floor.addComponent("render", {
+	type: "plane",
+	material: makeMaterial(FLOOR_MATERIAL),
+	castShadows: false,
+	receiveShadows: true,
+});
+floor.setLocalScale(FLOOR_SIZE, 1, FLOOR_SIZE);
+app.root.addChild(floor);
+
+// Explicit geometry rather than the render component's primitive types,
+// because the shared spec pins the vertex budgets (sphere 32x16, torus 24x12)
+// and PlayCanvas's primitives use engine defaults - its torus came out
+// visibly chunkier than three.js's in the first capture. Built this way the
+// counts match three.js exactly: sphere 561 verts, torus 325, box 24.
+// The three meshes are SHARED by every instance, as the other legs share
+// their geometries; only the MeshInstance is per object.
+const meshes = [
+	pc.Mesh.fromGeometry(device, new pc.BoxGeometry({ halfExtents: new pc.Vec3(0.5, 0.5, 0.5) })),
+	pc.Mesh.fromGeometry(device, new pc.SphereGeometry({ radius: 0.5, latitudeBands: 16, longitudeBands: 32 })),
+	pc.Mesh.fromGeometry(device, new pc.TorusGeometry({ tubeRadius: 0.125, ringRadius: 0.375, segments: 12, sides: 24 })),
+];
+
+const objects = makeObjects(MAX_N).map((o, i) => {
+	const e = new pc.Entity();
+	const mat = params.unique ? makeMaterial(uniqueMaterial(i)) : materials[o.mat];
+	e.addComponent("render", {
+		meshInstances: [new pc.MeshInstance(meshes[o.kind], mat)],
+		castShadows: true,
+		receiveShadows: true,
+	});
+	e.setPosition(o.x, o.y, o.z);
+	e.setEulerAngles(0, (o.ry * 180) / Math.PI, 0);
+	// Uniform scale, same as the other legs: the geometry above is already
+	// authored at the spec's sizes, so the seed's `s` is the only scaling.
+	e.setLocalScale(o.s, o.s, o.s);
+	e.enabled = false;
+	app.root.addChild(e);
+	return e;
+});
+
+app.start();
+if (device.gpuProfiler) {
+	device.gpuProfiler.enabled = !new URLSearchParams(location.search).has("common_scope");
+}
+
+// Draw-call count: read whichever field this build publishes, and say so once
+// if none does, rather than reporting a confident zero.
+let drawsPathNoted = false;
+function drawCount() {
+	const s = app.stats;
+	const candidates = [s?.frame?.drawCalls, s?.drawCalls?.total, s?.frame?.renderTargetCreationTime === undefined ? undefined : undefined];
+	for (const c of candidates) {
+		if (typeof c === "number" && c > 0) return c;
+	}
+	if (!drawsPathNoted) {
+		drawsPathNoted = true;
+		X.note("note: no draw-call stat found on app.stats");
+	}
+	return 0;
+}
+
+const res = { x: device.width, y: device.height };
+const ramp = params.ramp;
+let step = -1, phase = 0, phaseStart = 0, gpuAccum = 0, gpuSamples = 0, angle = 0;
+
+function nextStep() {
+	step++;
+	if (step >= ramp.length) {
+		phase = 3;
+		console.log("XBENCH DONE");
+		X.note("XBENCH DONE");
+		return;
+	}
+	const n = ramp[step];
+	for (let i = 0; i < objects.length; i++) objects[i].enabled = i < n;
+	phase = 1;
+	phaseStart = performance.now();
+}
+nextStep();
+
+app.on("update", (dt) => {
+	angle += CAMERA.speed * dt;
+	camera.setPosition(Math.sin(angle) * CAMERA.radius, CAMERA.height, Math.cos(angle) * CAMERA.radius);
+	camera.lookAt(CAMERA.target[0], CAMERA.target[1], CAMERA.target[2]);
+	if (phase === 3) return;
+	const now = performance.now();
+	if (phase === 1 && now - phaseStart >= WARM_MS) {
+		phase = 2;
+		phaseStart = now;
+		gpuAccum = 0;
+		gpuSamples = 0;
+		X.begin();
+	} else if (phase === 2) {
+		const ms = device.gpuProfiler?.frameTime;
+		if (typeof ms === "number" && ms > 0) { gpuAccum += ms; gpuSamples++; }
+		if (now - phaseStart >= MEASURE_MS) {
+			const gpu = gpuSamples ? gpuAccum / gpuSamples : 0;
+			X.report("playcanvas", ramp[step], "gpu_ms=" + gpu.toFixed(2) +
+				" draws=" + drawCount() + " res=" + res.x + "x" + res.y + " mode=" + mode);
+			nextStep();
+		}
+	}
+});
+</script>
+</body>
+</html>
