@@ -25,3 +25,18 @@ Reproduction and acceptance:
 The report uses medians of five independent observation windows. GPU sample counts are submissions, not frame-time percentiles. The extra marker passes and readbacks can affect GPU scheduling; profiling-off CPU controls quantify CPU observer cost but do not remove GPU observer cost. Tiny GPU differences near browser timestamp resolution must not be ranked as meaningful speedups. This remains a desktop/headless scene test, not a headset, native-material completeness, or end-to-end frame-latency result.
 
 Renderer-process CPU totals measure work across threads, not latency. They can exceed elapsed wall time when threads execute concurrently; a threaded build's CPU total alone does not establish its frame-rate advantage or disadvantage.
+
+## Isolated CPU follow-up
+
+`run-paired.py` alternates preserved baseline and candidate builds for each count, repetition and profiling mode. It rotates thread-mode order and uses the same scene, audio behavior, browser settings and observation duration. `verify-paired.py` requires pixel-identical output against the preserved baseline, complete GPU samples, frame-callback coverage and the expected engine revisions. The initial comparison uses baseline 2f3fd8aa21 and candidate 3130ee0622.
+
+Optional diagnostics in `run.mjs`:
+
+- `--cpuProfile`: Chrome sampling profile of the page; diagnostic overhead makes these runs unsuitable for performance claims.
+- `--browserTrace`: browser-thread activity, written separately; also diagnostic only.
+- `--commandAudit`: records commands in each submission to check whether submissions are truly empty.
+- `--frameTiming`: records wall time inside frame callbacks that actually render an engine frame. This is separate from renderer-process CPU and includes waits within the callback. Timestamp resolution differs with cross-origin isolation; compare baseline/candidate within the same mode.
+- `--audioControl suspended`: explicitly suspends captured AudioContexts after startup. This is an attribution control, not an engine optimization or a production setting. Primary optimization comparisons retain normal audio.
+- `--buildDir`: serves an explicitly selected export directory without overwriting prior measured artifacts.
+
+The baseline browser trace found a real audio worklet contribution in this silent scene. Claude's older xbench results use frame-callback time, native PBR materials, lights/shadows and much higher object counts; batch mode also exercises automatic draw merging. Do not compare those results directly with process-wide CPU totals or present either fixture as a universal engine ranking. Preserve the shader-error notes present in the older xbench logs.

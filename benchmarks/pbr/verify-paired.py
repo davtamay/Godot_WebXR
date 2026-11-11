@@ -3,15 +3,16 @@ from pathlib import Path
 import json,statistics,argparse,random,csv
 import numpy as np
 from PIL import Image
-p=argparse.ArgumentParser();p.add_argument('root');p.add_argument('references');a=p.parse_args();root=Path(a.root);refs=Path(a.references)
+p=argparse.ArgumentParser();p.add_argument('root');p.add_argument('references');p.add_argument('--candidate-revision',default='3130ee0622');a=p.parse_args();root=Path(a.root);refs=Path(a.references)
 plan=json.loads((root/'plan.json').read_text());cases=[];visual=[]
 for task in plan['cases']:
  d=root/f"n{task['count']}-r{task['repeat']}-{task['profile']}-{task['build']}";summary=json.loads((d/'summary.json').read_text());assert summary.get('finished')
+ config=summary['configuration'];assert config['audioControl']=='normal' and config['frameTiming'] and not any(config[k] for k in ['cpuProfile','browserTrace','commandAudit'])
  for stub in summary['cases']:
   c=json.loads((d/(stub['id']+'.json')).read_text());assert c['status']=='passed',c.get('failure');assert c['queue']['submissions']>0
   if task['profile']=='on':assert len(c['queue']['samples'])==c['queue']['submissions'] and len({x['ordinal'] for x in c['queue']['samples']})==c['queue']['submissions']
   assert c['frameCallbackTimes'] and abs(len(c['frameCallbackTimes'])-len(c['frames']))<=1
-  expected='3130ee0622' if task['build']=='candidate' else '2f3fd8aa21';assert c['metadata']['provenance']['engine_source']['revision'].startswith(expected)
+  expected=a.candidate_revision if task['build']=='candidate' else '2f3fd8aa21';assert c['metadata']['provenance']['engine_source']['revision'].startswith(expected)
   image=np.array(Image.open(d/(stub['id']+'.png')));reference=np.array(Image.open(refs/f"godot-single-{task['count']}-1-off.png"));same=bool(np.array_equal(image,reference));assert same,str(d)+' image differs'
   visual.append(dict(case=str(d.name)+'/'+stub['id'],pixel_identical=same))
   cases.append(dict(count=task['count'],repeat=task['repeat'],profile=task['profile'],build=task['build'],engine=c['engine'],cpu=c['metrics']['rendererCpuMsPerFrame'],callback=statistics.mean(c['frameCallbackTimes']),gpu=c['metrics']['gpuCommandMsPerFrame']))
