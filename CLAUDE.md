@@ -1,3 +1,7 @@
+## PBR benchmarks and common timing scopes
+
+Read docs/CODEX_PBR_BENCHMARK_HANDOFF.md first. This isolated follow-up supersedes the earlier PBR/timing TODO; preserve Monday and original source work.
+
 ## Matched benchmarks and provenance — completed
 
 Read docs/CODEX_MATCHED_BENCHMARK_HANDOFF.md first. Preserve the isolated branches, measured artifacts and Monday snapshots; no engine patch was needed.
