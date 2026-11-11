@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://xbench1"]
+
+[ext_resource type="Script" path="res://xbench.gd" id="1_xbench"]
+
+[node name="XBench" type="Node3D"]
+script = ExtResource("1_xbench")
